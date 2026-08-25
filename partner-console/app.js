@@ -6,7 +6,7 @@
 /* ── API key holder — lưu trong localStorage, tự động đính kèm vào mọi fetch /v1/* operational ── */
 const _origFetch = window.fetch.bind(window);
 let ACTIVE_API_KEY = localStorage.getItem("fptDdiKey") || "";
-const AUTH_PATHS = ["/v1/batch", "/v1/models", "/v1/endpoints", "/v1/skills", "/v1/chat", "/v1/byom", "/v1/audit", "/v1/price-packs", "/v1/dashboard"];
+const AUTH_PATHS = ["/v1/batch", "/v1/models", "/v1/endpoints", "/v1/skills", "/v1/chat", "/v1/byom", "/v1/audit", "/v1/price-packs", "/v1/dashboard", "/v1/documents"];
 let _lastAuthToast = 0;
 function authFailToast(status, json) {
   const now = Date.now();
@@ -3577,8 +3577,133 @@ async function fetchGuardrailEvents(id) {
   }
 }
 
+/* ── Documents (US-04 — trích xuất tài liệu bảo hiểm) ── */
+let docJobs = [];
+let docPollTimer = null;
+
+async function fetchDocuments() {
+  const params = new URLSearchParams();
+  const seg = $("#docFilterSegment").value;
+  const st = $("#docFilterStatus").value;
+  if (seg) params.set("segment", seg);
+  if (st) params.set("status", st);
+  const qs = params.toString();
+  try {
+    const res = await fetch("/v1/documents" + (qs ? "?" + qs : ""));
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const json = await res.json();
+    docJobs = json.data || [];
+  } catch (e) {
+    console.warn("[documents] fetch lỗi:", e.message);
+    docJobs = [];
+  }
+  renderDocuments();
+}
+
+function docStatusCls(s) {
+  return s === "completed" ? "running" : s === "failed" ? "failed" : "paused";
+}
+
+function renderDocuments() {
+  const rows = docJobs;
+  if (!rows.length) {
+    $("#docRows").innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--ink-faint);padding:30px">Chưa có document job. Upload tài liệu để bắt đầu.</td></tr>`;
+  } else {
+    $("#docRows").innerHTML = rows.map((j) => {
+      const conf = j.confidence != null ? (Number(j.confidence) * 100).toFixed(1) + "%" : "—";
+      const red = j.redacted ? '<span class="status s-failed">redacted</span>' : '<span style="color:var(--ink-faint)">—</span>';
+      return `<tr class="row-link" data-doc-id="${esc(j.id)}" tabindex="0">
+        <td class="mono" style="font-size:11px">${esc(j.id)}</td>
+        <td>${esc(j.docType)}</td>
+        <td>${esc(j.segment)}</td>
+        <td class="mono" style="font-size:11px">${esc(j.filename)}</td>
+        <td><span class="status s-${docStatusCls(j.status)}">${esc(j.status)}</span></td>
+        <td class="num">${conf}</td>
+        <td>${red}</td>
+        <td><button class="btn btn-ghost btn-sm" data-action="doc-view" data-id="${esc(j.id)}">Xem</button></td>
+      </tr>`;
+    }).join("");
+  }
+  // poll khi có job queued/processing (async worker)
+  const active = rows.some((j) => j.status === "queued" || j.status === "processing");
+  if (active && !docPollTimer) {
+    docPollTimer = setInterval(() => { if (!$("#view-documents").hidden) fetchDocuments().catch(() => {}); }, 2500);
+  } else if (!active && docPollTimer) {
+    clearInterval(docPollTimer); docPollTimer = null;
+  }
+}
+
+async function showDocDetail(id) {
+  try {
+    const res = await fetch("/v1/documents/" + encodeURIComponent(id));
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const json = await res.json();
+    renderDocDetail(json.data);
+  } catch (e) {
+    toast("Lỗi tải chi tiết: " + e.message);
+  }
+}
+
+function renderDocDetail(j) {
+  const panel = $("#docDetailPanel");
+  panel.hidden = false;
+  const fields = j.fields || {};
+  const fieldRows = Object.entries(fields).map(([k, v]) => {
+    const isRed = v === "[REDACTED]";
+    return `<tr>
+      <td class="mono" style="font-size:11px">${esc(k)}</td>
+      <td>${isRed ? '<span class="status s-failed">[REDACTED]</span>' : (v != null ? esc(v) : '<span style="color:var(--ink-faint)">—</span>')}</td>
+    </tr>`;
+  }).join("");
+  const conf = j.confidence != null ? (Number(j.confidence) * 100).toFixed(1) + "%" : "—";
+  $("#docDetail").innerHTML = `
+    <p class="mono" style="font-size:11px">Job: ${esc(j.id)} · ${esc(j.docType)} · ${esc(j.segment)} · status: ${esc(j.status)} · confidence: ${conf}${j.redacted ? ' · <b>redacted</b>' : ''}</p>
+    ${j.error ? `<p class="form-error mono" style="font-size:11px">Error: ${esc(j.error)}</p>` : ""}
+    <table class="table" style="margin-top:8px">
+      <thead><tr><th>Trường</th><th>Giá trị</th></tr></thead>
+      <tbody>${fieldRows || '<tr><td colspan="2" style="color:var(--ink-faint)">Chưa có fields</td></tr>'}</tbody>
+    </table>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-ghost btn-sm" id="docEditBtn">Sửa thủ công</button>
+      <button class="btn btn-primary btn-sm" id="docConfirmBtn">Xác nhận</button>
+    </div>
+  `;
+  $("#docEditBtn").addEventListener("click", () => docEditFields(j));
+  $("#docConfirmBtn").addEventListener("click", () => docConfirmWithFields(j, j.fields || {}));
+}
+
+function docEditFields(j) {
+  const fields = { ...(j.fields || {}) };
+  const keys = Object.keys(fields);
+  if (!keys.length) { toast("Chưa có fields để sửa"); return; }
+  for (const k of keys) {
+    const cur = fields[k] === "[REDACTED]" ? "" : (fields[k] || "");
+    const nv = prompt(`Sửa trường "${k}" (bỏ trống = giữ nguyên):`, cur);
+    if (nv === null) return; // hủy
+    if (nv !== "") fields[k] = nv;
+  }
+  docConfirmWithFields(j, fields);
+}
+
+async function docConfirmWithFields(j, fields) {
+  try {
+    const res = await fetch("/v1/documents/" + encodeURIComponent(j.id) + "/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fields }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(`Lỗi ${res.status}: ${json.error || ""}`); return; }
+    toast("Đã xác nhận / lưu fields");
+    fetchDocuments();
+    showDocDetail(j.id);
+  } catch (e) {
+    toast("Network error: " + e.message);
+  }
+}
+
 /* ── Routing ───────────────────────────────── */
-const VIEWS = ["overview", "dashboard", "nvidia", "partners", "catalog", "nim", "serverless", "dedicated", "fine-tuning", "batch", "experiments", "sla-ptu", "pricing", "billing", "infra", "devtools", "audit"];
+const VIEWS = ["overview", "dashboard", "nvidia", "partners", "catalog", "nim", "serverless", "dedicated", "fine-tuning", "batch", "experiments", "sla-ptu", "pricing", "billing", "documents", "infra", "devtools", "audit"];
 
 function route() {
   const hash = (location.hash || "#/overview").replace("#/", "");
@@ -3804,6 +3929,43 @@ async function init() {
   $("#auditAction").addEventListener("change", (e) => { auditFilters.action = e.target.value; fetchAudit(); });
   $("#auditRange").addEventListener("change", (e) => { auditFilters.range = e.target.value; fetchAudit(); });
   $("#auditRefresh").addEventListener("click", fetchAudit);
+
+  // Documents (US-04) — upload + filters + refresh + view detail
+  fetchDocuments();
+  $("#docUploadForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fileInput = $("#docFile");
+    if (!fileInput.files || !fileInput.files.length) { toast("Chọn file để upload"); return; }
+    const fd = new FormData();
+    fd.append("file", fileInput.files[0]);
+    fd.append("doc_type", $("#docType").value);
+    fd.append("segment", $("#docSegment").value);
+    try {
+      const res = await fetch("/v1/documents", { method: "POST", body: fd });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { toast(`Lỗi ${res.status}: ${json.error || ""}`); return; }
+      toast("Đã queue document job — đang trích xuất…");
+      fileInput.value = "";
+      fetchDocuments();
+    } catch (err) {
+      toast("Network error: " + err.message);
+    }
+  });
+  $("#docFilterSegment").addEventListener("change", fetchDocuments);
+  $("#docFilterStatus").addEventListener("change", fetchDocuments);
+  $("#docRefresh").addEventListener("click", fetchDocuments);
+  $("#docRows").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-action='doc-view']");
+    if (btn) { showDocDetail(btn.dataset.id); return; }
+    const row = e.target.closest("[data-doc-id]");
+    if (row) showDocDetail(row.dataset.docId);
+  });
+  $("#docRows").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      const row = e.target.closest("[data-doc-id]");
+      if (row) { e.preventDefault(); showDocDetail(row.dataset.docId); }
+    }
+  });
 
   $("#byomBtn").addEventListener("click", openByomModal);
   $("#byomModalClose").addEventListener("click", closeByomModal);
