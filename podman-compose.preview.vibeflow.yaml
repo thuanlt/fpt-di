@@ -36,6 +36,9 @@ services:
       - BYOM_HF_TIMEOUT_MS=600000
       - BYOM_WORKER_POLL_MS=3000
       - BYOM_WORKER_CONCURRENCY=2
+      - DOCUMENTS_STORAGE_ROOT=/data/documents
+      - DOCUMENTS_WORKER_POLL_MS=2000
+      - DOCUMENTS_WORKER_CONCURRENCY=2
       - VLLM_BASE_URL=http://vllm-adapter:8000
       - ZENFLOW_BIN=/usr/local/bin/zenflow
       - ZENFLOW_WORKFLOWS_DIR=/app/zenflow-workflows
@@ -44,6 +47,7 @@ services:
     volumes:
       - batchdata:/data/batch
       - byomdata:/data/byom
+      - docsdata:/data/documents
     depends_on:
       - redis
       - postgres
@@ -82,3 +86,4 @@ volumes:
   redisdata: {}
   pgdata: {}
   byomdata: {}
+  docsdata: {}

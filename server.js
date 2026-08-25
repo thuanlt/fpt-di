@@ -15,12 +15,15 @@ const auditRouter = require('./src/audit/routes');
 const catalogRouter = require('./src/catalog/routes');
 const pricingRouter = require('./src/pricing/routes');
 const dashboardRouter = require('./src/dashboard/routes');
+const documentsRouter = require('./src/documents/routes');
 const db = require('./src/db/pool');
 const worker = require('./src/batch/worker');
 const byomWorker = require('./src/byom/worker');
 const endpointWorker = require('./src/endpoints/worker');
+const documentsWorker = require('./src/documents/worker');
 const { shutdown: queueShutdown, ping: redisPing } = require('./src/batch/queue');
 const byomCfg = require('./src/byom/config');
+const documentsCfg = require('./src/documents/config');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -35,7 +38,8 @@ app.get('/health', async (req, res) => {
   ]);
   const fsByom = fs.existsSync(byomCfg.storage.root);
   const fsBatch = fs.existsSync(process.env.BATCH_STORAGE_ROOT || '/data/batch');
-  const ok = pgOk && redisOk && fsByom && fsBatch;
+  const fsDocuments = fs.existsSync(documentsCfg.storage.root);
+  const ok = pgOk && redisOk && fsByom && fsBatch && fsDocuments;
   res.status(ok ? 200 : 503).json({
     status: ok ? 'ok' : 'degraded',
     uptime: process.uptime(),
@@ -43,11 +47,12 @@ app.get('/health', async (req, res) => {
       batch: worker.status(),
       byom: byomWorker.status(),
       endpoint: endpointWorker.status(),
+      documents: documentsWorker.status(),
       mode: process.env.WORKER_MODE || 'all',
     },
     postgres: pgOk,
     redis: redisOk,
-    storage: { byom: fsByom, batch: fsBatch },
+    storage: { byom: fsByom, batch: fsBatch, documents: fsDocuments },
   });
 });
 
@@ -76,6 +81,7 @@ function pathScope(p) {
   if (p === '/price-packs' || p.startsWith('/price-packs/')) return 'admin';
   // US-07 — dashboard KPI (scope endpoints)
   if (p === '/dashboard' || p.startsWith('/dashboard/')) return 'endpoints';
+  if (p === '/documents' || p.startsWith('/documents/')) return 'endpoints'; // US-04
   if (p.startsWith('/endpoints') || p === '/skills' || p.startsWith('/skills/')) return 'endpoints';
   // /chat/completions — playground chat, gate scope 'playground' (UI có key với scope)
   if (p === '/chat/completions') return 'playground';
@@ -103,6 +109,12 @@ function roleRequirement(method, p) {
     if (p.endsWith('/chat/completions')) return null; // invoke — mọi role dùng được
     if (m === 'GET') return null; // đọc — viewer ok
     return ['operator', 'admin'];
+  }
+  // US-04 — documents: read + upload chỉ cần scope endpoints; confirm cần operator/admin
+  if (p === '/documents' || p.startsWith('/documents/')) {
+    if (m === 'GET') return null; // đọc — viewer ok
+    if (p.endsWith('/confirm')) return ['operator', 'admin'];
+    return null; // POST /documents upload — scope endpoints đủ (theo blueprint)
   }
   // Keys mutations — chỉ enforce khi KEYS_ADMIN_REQUIRED (prod)
   if ((p === '/keys' || p.startsWith('/keys/')) && p !== '/keys/verify' && p !== '/keys/_/scopes') {
@@ -170,7 +182,7 @@ app.get('/v1/metrics/cold-start', async (req, res) => {
 });
 
 // Mount router operational — tất cả dùng prefix /v1
-app.use('/v1', keysRouter, batchRouter, byomRouter, skillsRouter, endpointsRouter, endpointInvokeRouter, inferenceRouter, auditRouter, catalogRouter, pricingRouter, dashboardRouter);
+app.use('/v1', keysRouter, batchRouter, byomRouter, skillsRouter, endpointsRouter, endpointInvokeRouter, inferenceRouter, auditRouter, catalogRouter, pricingRouter, dashboardRouter, documentsRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Không tìm thấy endpoint' });
@@ -204,7 +216,8 @@ const server = app.listen(PORT, async () => {
     worker.start();
     byomWorker.start();
     endpointWorker.start();
-    console.log(`[workers] mode=${WORKER_MODE} — batch+byom+endpoint đã khởi động`);
+    documentsWorker.start();
+    console.log(`[workers] mode=${WORKER_MODE} — batch+byom+endpoint+documents đã khởi động`);
   } else {
     console.log(`[workers] mode=${WORKER_MODE} — web/API-only, không khởi động workers`);
   }
@@ -215,6 +228,7 @@ function graceful(signal) {
   worker.stop();
   byomWorker.stop();
   endpointWorker.stop();
+  documentsWorker.stop();
   Promise.all([queueShutdown(), db.shutdown()]).finally(() => {
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 5000).unref();
