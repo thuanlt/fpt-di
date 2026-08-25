@@ -1,0 +1,5 @@
+{"model":"PhoGPT-4B","messages":[{"role":"user","content":"Tóm tắt dịch vụ FPT DDI dedicated inference trong 1 câu"}]}
+{"model":"PhoGPT-4B","messages":[{"role":"user","content":"Viết slogan marketing cho FPT DDI, nhấn mạnh data residency Việt Nam"}]}
+{"model":"PhoGPT-4B","messages":[{"role":"user","content":"So sánh dedicated vs serverless inference — 3 điểm khác biệt"}]}
+{"model":"PhoGPT-4B","prompt":"Liệt kê 5 lợi thế của FPT DDI so với Together AI"}
+{"model":"FPT-LLM 8B (vi)","messages":[{"role":"system","content":"Trả lời ngắn gọn bằng tiếng Việt"},{"role":"user","content":"Decree 13/2023 là gì và ảnh hưởng gì đến AI inference?"}]}

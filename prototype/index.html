@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FPT AI Marketplace</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f8f9fb;--surface:#ffffff;--surface-hover:#f0f2f5;
+  --primary:#2563eb;--primary-dark:#1d4ed8;--primary-light:#dbeafe;
+  --text:#111827;--text-secondary:#6b7280;--text-tertiary:#9ca3af;
+  --border:#e5e7eb;--border-strong:#d1d5db;
+  --success:#10b981;--warning:#f59e0b;--danger:#ef4444;
+  --radius:12px;--radius-sm:8px;--radius-xs:6px;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.06);
+  --shadow-md:0 4px 12px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.04);
+  --shadow-lg:0 12px 24px rgba(0,0,0,.1),0 4px 8px rgba(0,0,0,.04);
+  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  --max-w:1280px;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+img{display:block;max-width:100%}
+
+.container{max-width:var(--max-w);margin:0 auto;padding:0 24px}
+
+/* HEADER */
+.header{position:sticky;top:0;z-index:100;background:rgba(255,255,255,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.header .container{display:flex;align-items:center;justify-content:space-between;height:64px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:1.25rem;color:var(--primary)}
+.logo svg{width:32px;height:32px}
+.nav{display:flex;align-items:center;gap:8px}
+.nav a{padding:8px 16px;border-radius:var(--radius-xs);font-size:.9rem;font-weight:500;color:var(--text-secondary);transition:color .15s,background .15s}
+.nav a:hover,.nav a:focus-visible{color:var(--text);background:var(--surface-hover)}
+.btn-signin{padding:8px 20px;border-radius:var(--radius-sm);font-size:.9rem;font-weight:600;color:#fff;background:var(--primary);transition:background .15s}
+.btn-signin:hover{background:var(--primary-dark)}
+
+/* HERO */
+.hero{padding:80px 0 60px;text-align:center;background:linear-gradient(180deg,#eff6ff 0%,var(--bg) 100%)}
+.hero h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:800;line-height:1.15;max-width:800px;margin:0 auto 16px;letter-spacing:-.02em}
+.hero h1 span{background:linear-gradient(135deg,var(--primary),#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{font-size:1.15rem;color:var(--text-secondary);max-width:600px;margin:0 auto 32px}
+.hero-ctas{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 28px;border-radius:var(--radius-sm);font-size:.95rem;font-weight:600;transition:all .15s}
+.btn-primary{color:#fff;background:var(--primary);box-shadow:0 2px 8px rgba(37,99,235,.3)}
+.btn-primary:hover{background:var(--primary-dark);transform:translateY(-1px);box-shadow:0 4px 12px rgba(37,99,235,.35)}
+.btn-outline{color:var(--primary);border:2px solid var(--primary)}
+.btn-outline:hover{background:var(--primary-light)}
+
+/* SECTION */
+.section{padding:60px 0}
+.section-title{font-size:1.6rem;font-weight:700;margin-bottom:8px}
+.section-sub{color:var(--text-secondary);margin-bottom:32px;font-size:1rem}
+
+/* PROVIDER SHOWCASE */
+.provider-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+.provider-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px 24px;text-align:center;transition:all .2s;cursor:pointer;position:relative;overflow:hidden}
+.provider-card:hover{border-color:var(--primary);box-shadow:var(--shadow-md);transform:translateY(-2px)}
+.provider-card.active{border-color:var(--primary);background:var(--primary-light)}
+.provider-card.active::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--primary)}
+.provider-logo{width:64px;height:64px;border-radius:var(--radius-sm);margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;font-weight:700;color:#fff}
+.provider-card h3{font-size:1.05rem;font-weight:700;margin-bottom:4px}
+.provider-card .model-count{font-size:.85rem;color:var(--text-secondary);margin-bottom:14px}
+.btn-explore{display:inline-block;padding:6px 18px;border-radius:var(--radius-xs);font-size:.8rem;font-weight:600;color:var(--primary);border:1px solid var(--primary);transition:all .15s}
+.btn-explore:hover{background:var(--primary);color:#fff}
+
+/* SEARCH & FILTER */
+.filter-bar{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin-bottom:24px;box-shadow:var(--shadow)}
+.search-row{display:flex;gap:12px;margin-bottom:16px}
+.search-input{flex:1;padding:10px 16px 10px 42px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.95rem;outline:none;transition:border .15s;background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") 14px center no-repeat}
+.search-input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.chip-group{display:flex;flex-wrap:wrap;gap:8px}
+.chip-group-label{font-size:.8rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+.chip{padding:6px 14px;border-radius:20px;font-size:.82rem;font-weight:500;border:1px solid var(--border);color:var(--text-secondary);transition:all .15s;user-select:none}
+.chip:hover{border-color:var(--primary);color:var(--primary)}
+.chip.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+
+/* MODEL CARDS */
+.model-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.model-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;transition:all .2s;display:flex;flex-direction:column}
+.model-card:hover{box-shadow:var(--shadow-md);transform:translateY(-2px)}
+.model-provider-bar{padding:14px 18px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border)}
+.model-provider-logo{width:40px;height:40px;border-radius:var(--radius-xs);display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:700;color:#fff;flex-shrink:0}
+.model-provider-info{flex:1;min-width:0}
+.model-provider-name{font-size:.95rem;font-weight:700}
+.model-provider-label{font-size:.75rem;color:var(--text-secondary)}
+.model-body{padding:18px;flex:1;display:flex;flex-direction:column}
+.model-name{font-size:1.1rem;font-weight:700;margin-bottom:4px}
+.model-desc{font-size:.85rem;color:var(--text-secondary);margin-bottom:14px;flex:1}
+.model-specs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px}
+.spec{text-align:center;padding:8px 4px;background:var(--bg);border-radius:var(--radius-xs)}
+.spec-value{font-size:.9rem;font-weight:700;color:var(--text)}
+.spec-label{font-size:.7rem;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em}
+.model-actions{display:flex;gap:8px;align-items:center}
+.btn-details{flex:1;padding:10px;border-radius:var(--radius-xs);font-size:.85rem;font-weight:600;color:#fff;background:var(--primary);text-align:center;transition:background .15s}
+.btn-details:hover{background:var(--primary-dark)}
+.compare-check{display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--text-secondary);cursor:pointer;white-space:nowrap}
+.compare-check input{width:16px;height:16px;accent-color:var(--primary);cursor:pointer}
+
+/* COMPARE BAR */
+.compare-bar{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:2px solid var(--primary);padding:14px 24px;z-index:200;box-shadow:0 -4px 16px rgba(0,0,0,.1);transform:translateY(100%);transition:transform .3s}
+.compare-bar.visible{transform:translateY(0)}
+.compare-bar .container{display:flex;align-items:center;justify-content:space-between}
+.compare-items{display:flex;gap:10px;flex-wrap:wrap}
+.compare-item{display:flex;align-items:center;gap:8px;padding:6px 14px;background:var(--primary-light);border-radius:var(--radius-xs);font-size:.85rem;font-weight:600}
+.compare-item button{font-size:1.1rem;color:var(--text-tertiary);line-height:1;padding:0 0 0 4px}
+.compare-item button:hover{color:var(--danger)}
+.btn-compare{padding:10px 24px;border-radius:var(--radius-sm);font-size:.9rem;font-weight:600;color:#fff;background:var(--primary)}
+.btn-compare:hover{background:var(--primary-dark)}
+
+/* PAGINATION */
+.pagination{display:flex;justify-content:center;align-items:center;gap:6px;margin-top:40px}
+.page-btn{width:40px;height:40px;border-radius:var(--radius-xs);display:flex;align-items:center;justify-content:center;font-size:.9rem;font-weight:500;border:1px solid var(--border);color:var(--text-secondary);transition:all .15s}
+.page-btn:hover{border-color:var(--primary);color:var(--primary)}
+.page-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.page-btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* EMPTY STATE */
+.empty-state{text-align:center;padding:80px 20px;display:none}
+.empty-state.visible{display:block}
+.empty-state svg{width:80px;height:80px;color:var(--text-tertiary);margin-bottom:16px}
+.empty-state h3{font-size:1.2rem;font-weight:600;margin-bottom:8px}
+.empty-state p{color:var(--text-secondary);font-size:.95rem}
+
+/* FOOTER */
+.footer{background:var(--surface);border-top:1px solid var(--border);padding:48px 0 32px;margin-top:40px}
+.footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;margin-bottom:32px}
+.footer-brand p{color:var(--text-secondary);font-size:.9rem;margin-top:8px;max-width:280px}
+.footer h4{font-size:.85rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin-bottom:12px}
+.footer ul{list-style:none}
+.footer li{margin-bottom:8px}
+.footer li a{font-size:.9rem;color:var(--text-secondary);transition:color .15s}
+.footer li a:hover{color:var(--primary)}
+.footer-bottom{border-top:1px solid var(--border);padding-top:20px;display:flex;justify-content:space-between;align-items:center;font-size:.82rem;color:var(--text-tertiary)}
+
+/* RESPONSIVE */
+@media(max-width:1024px){
+  .provider-grid{grid-template-columns:repeat(2,1fr)}
+  .model-grid{grid-template-columns:repeat(2,1fr)}
+  .footer-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:640px){
+  .hero{padding:48px 0 40px}
+  .hero h1{font-size:1.8rem}
+  .provider-grid{grid-template-columns:1fr}
+  .model-grid{grid-template-columns:1fr}
+  .model-specs{grid-template-columns:1fr 1fr 1fr}
+  .footer-grid{grid-template-columns:1fr}
+  .nav a{display:none}
+  .search-row{flex-direction:column}
+}
+
+/* ACCESSIBILITY */
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+
+/* ANIMATIONS */
+@keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.model-card{animation:fadeIn .3s ease both}
+.model-card:nth-child(2){animation-delay:.05s}
+.model-card:nth-child(3){animation-delay:.1s}
+.model-card:nth-child(4){animation-delay:.15s}
+.model-card:nth-child(5){animation-delay:.2s}
+.model-card:nth-child(6){animation-delay:.25s}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header" role="banner">
+  <div class="container">
+    <a href="#" class="logo" aria-label="FPT AI Marketplace Home">
+      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect width="32" height="32" rx="8" fill="#2563eb"/>
+        <path d="M8 22V10l8 6 8-6v12" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      FPT AI Marketplace
+    </a>
+    <nav class="nav" role="navigation" aria-label="Main navigation">
+      <a href="#providers">Products</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#docs">Docs</a>
+      <a href="#signin" class="btn-signin">Sign in</a>
+    </nav>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero" aria-labelledby="hero-heading">
+  <div class="container">
+    <h1 id="hero-heading">Your <span>Production-Grade</span> Gateway to World-Class AI Models.</h1>
+    <p>Access top AI models from leading providers through a single unified API. Build faster, scale smarter.</p>
+    <div class="hero-ctas">
+      <a href="#models" class="btn btn-primary">Browse Models</a>
+      <a href="#docs" class="btn btn-outline">Read the Docs</a>
+    </div>
+  </div>
+</section>
+
+<!-- PROVIDER SHOWCASE -->
+<section class="section" id="providers" aria-labelledby="providers-heading">
+  <div class="container">
+    <h2 class="section-title" id="providers-heading">AI Model Providers</h2>
+    <p class="section-sub">Choose from the world's leading AI providers — all accessible through one API.</p>
+    <div class="provider-grid" id="provider-grid" role="list"></div>
+  </div>
+</section>
+
+<!-- SEARCH & FILTER -->
+<section class="section" id="models" style="padding-top:0" aria-labelledby="models-heading">
+  <div class="container">
+    <h2 class="section-title" id="models-heading">Explore Models</h2>
+    <p class="section-sub">Search and filter across all available models.</p>
+
+    <div class="filter-bar" role="search" aria-label="Filter models">
+      <div class="search-row">
+        <label for="search-input" class="sr-only">Search models</label>
+        <input type="search" id="search-input" class="search-input" placeholder="Search models by name, provider, or capability…" aria-label="Search models">
+      </div>
+      <div style="margin-bottom:14px">
+        <div class="chip-group-label">Providers</div>
+        <div class="chip-group" id="provider-chips" role="group" aria-label="Filter by provider"></div>
+      </div>
+      <div>
+        <div class="chip-group-label">Categories</div>
+        <div class="chip-group" id="category-chips" role="group" aria-label="Filter by category"></div>
+      </div>
+    </div>
+
+    <div class="model-grid" id="model-grid" role="list" aria-label="Model cards"></div>
+    <div class="empty-state" id="empty-state" role="status">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        <path d="M8 11h6"/>
+      </svg>
+      <h3>No models found</h3>
+      <p>Try adjusting your search or filter criteria.</p>
+    </div>
+
+    <nav class="pagination" id="pagination" role="navigation" aria-label="Pagination"></nav>
+  </div>
+</section>
+
+<!-- COMPARE BAR -->
+<div class="compare-bar" id="compare-bar" role="region" aria-label="Model comparison">
+  <div class="container">
+    <div class="compare-items" id="compare-items"></div>
+    <button class="btn-compare" id="btn-compare-action" aria-label="Compare selected models">Compare Now</button>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer class="footer" role="contentinfo">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a href="#" class="logo">
+          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" width="28" height="28">
+            <rect width="32" height="32" rx="8" fill="#2563eb"/>
+            <path d="M8 22V10l8 6 8-6v12" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          FPT AI Marketplace
+        </a>
+        <p>Production-grade access to the world's best AI models through a single unified API.</p>
+      </div>
+      <div>
+        <h4>Platform</h4>
+        <ul>
+          <li><a href="#">Model Catalog</a></li>
+          <li><a href="#">Pricing</a></li>
+          <li><a href="#">API Reference</a></li>
+          <li><a href="#">SDKs</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Resources</h4>
+        <ul>
+          <li><a href="#">Documentation</a></li>
+          <li><a href="#">Tutorials</a></li>
+          <li><a href="#">Blog</a></li>
+          <li><a href="#">Status Page</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Company</h4>
+        <ul>
+          <li><a href="#">About FPT</a></li>
+          <li><a href="#">Contact</a></li>
+          <li><a href="#">Privacy Policy</a></li>
+          <li><a href="#">Terms of Service</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; 2026 FPT AI Marketplace. All rights reserved.</span>
+      <span>Built with care in Vietnam</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+const providers = [
+  { id:'fpt', name:'FPT', color:'#2563eb', letter:'FPT', models:3 },
+  { id:'google', name:'Google', color:'#4285f4', letter:'G', models:3 },
+  { id:'alibaba', name:'Alibaba', color:'#ff6a00', letter:'A', models:2 },
+  { id:'deepseek', name:'DeepSeek', color:'#00b4d8', letter:'DS', models:2 },
+  { id:'zai', name:'Z.AI', color:'#8b5cf6', letter:'Z', models:1 },
+  { id:'minimax', name:'MiniMax', color:'#ec4899', letter:'MM', models:1 },
+  { id:'anthropic', name:'Anthropic', color:'#1e293b', letter:'An', models:2 },
+  { id:'openai', name:'OpenAI', color:'#10b981', letter:'O', models:3 }
+];
+
+const categories = ['All','Text','Code','Vision','Multimodal','Embedding'];
+
+const models = [
+  { id:1, name:'FPT Grok-1', provider:'fpt', category:'Text', context:'128K', price:'$0.002/M', latency:'45ms', desc:'FPT\'s flagship text model optimized for Southeast Asian languages.' },
+  { id:2, name:'FPT Grok-2', provider:'fpt', category:'Multimodal', context:'128K', price:'$0.005/M', latency:'60ms', desc:'Multimodal model with image and text understanding capabilities.' },
+  { id:3, name:'FPT CodeGen', provider:'fpt', category:'Code', context:'64K', price:'$0.003/M', latency:'40ms', desc:'Code generation model trained on diverse programming languages.' },
+  { id:4, name:'Gemini Pro', provider:'google', category:'Text', context:'2M', price:'$0.0035/M', latency:'55ms', desc:'Google\'s advanced language model with massive context window.' },
+  { id:5, name:'Gemini Flash', provider:'google', category:'Multimodal', context:'1M', price:'$0.001/M', latency:'35ms', desc:'Fast and efficient multimodal model for real-time applications.' },
+  { id:6, name:'Gemini Embedding', provider:'google', category:'Embedding', context:'2K', price:'$0.0001/M', latency:'12ms', desc:'High-quality embedding model for semantic search and retrieval.' },
+  { id:7, name:'Qwen-Max', provider:'alibaba', category:'Text', context:'32K', price:'$0.004/M', latency:'50ms', desc:'Alibaba\'s most capable model for complex reasoning tasks.' },
+  { id:8, name:'Qwen-Plus', provider:'alibaba', category:'Multimodal', context:'131K', price:'$0.0015/M', latency:'42ms', desc:'Balanced performance and cost for enterprise workloads.' },
+  { id:9, name:'DeepSeek-V3', provider:'deepseek', category:'Text', context:'128K', price:'$0.0014/M', latency:'38ms', desc:'Open-weight model with strong reasoning and multilingual support.' },
+  { id:10, name:'DeepSeek-Coder', provider:'deepseek', category:'Code', context:'128K', price:'$0.001/M', latency:'36ms', desc:'Specialized code model excelling at code generation and review.' },
+  { id:11, name:'Z.AI Ultra', provider:'zai', category:'Multimodal', context:'200K', price:'$0.006/M', latency:'65ms', desc:'State-of-the-art multimodal model with visual reasoning.' },
+  { id:12, name:'MiniMax-H2', provider:'minimax', category:'Text', context:'32K', price:'$0.002/M', latency:'44ms', desc:'High-performance text model with creative writing capabilities.' },
+  { id:13, name:'Claude Sonnet 4', provider:'anthropic', category:'Text', context:'200K', price:'$0.003/M', latency:'48ms', desc:'Balanced intelligence and speed for production workloads.' },
+  { id:14, name:'Claude Opus 4', provider:'anthropic', category:'Multimodal', context:'200K', price:'$0.015/M', latency:'80ms', desc:'Most capable model for complex, multi-step reasoning tasks.' },
+  { id:15, name:'GPT-4o', provider:'openai', category:'Multimodal', context:'128K', price:'$0.0025/M', latency:'40ms', desc:'OpenAI\'s flagship multimodal model with real-time capabilities.' },
+  { id:16, name:'GPT-4o Mini', provider:'openai', category:'Text', context:'128K', price:'$0.0005/M', latency:'28ms', desc:'Cost-effective model for high-volume, low-latency applications.' },
+  { id:17, name:'o3-mini', provider:'openai', category:'Code', context:'200K', price:'$0.0011/M', latency:'52ms', desc:'Reasoning-optimized model for code and math problems.' }
+];
+
+let selectedProviders = new Set();
+let selectedCategories = new Set();
+let searchQuery = '';
+let currentPage = 1;
+let compareList = [];
+const perPage = 9;
+
+function renderProviders() {
+  const grid = document.getElementById('provider-grid');
+  grid.innerHTML = providers.map(p => `
+    <div class="provider-card ${selectedProviders.has(p.id)?'active':''}" role="listitem" tabindex="0" data-provider="${p.id}" aria-label="${p.name} provider, ${p.models} models" aria-pressed="${selectedProviders.has(p.id)}">
+      <div class="provider-logo" style="background:${p.color}" aria-hidden="true">${p.letter}</div>
+      <h3>${p.name}</h3>
+      <div class="model-count">${p.models} model${p.models>1?'s':''}</div>
+      <button class="btn-explore" aria-label="Explore ${p.name} models">Explore</button>
+    </div>
+  `).join('');
+
+  grid.querySelectorAll('.provider-card').forEach(card => {
+    card.addEventListener('click', () => toggleProvider(card.dataset.provider));
+    card.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' ') { e.preventDefault(); toggleProvider(card.dataset.provider); }});
+  });
+}
+
+function toggleProvider(id) {
+  if (selectedProviders.has(id)) selectedProviders.delete(id);
+  else selectedProviders.add(id);
+  currentPage = 1;
+  renderProviders();
+  renderProviderChips();
+  renderModels();
+}
+
+function renderProviderChips() {
+  const container = document.getElementById('provider-chips');
+  container.innerHTML = providers.map(p =>
+    `<button class="chip ${selectedProviders.has(p.id)?'active':''}" data-chip-provider="${p.id}" aria-pressed="${selectedProviders.has(p.id)}">${p.name}</button>`
+  ).join('');
+  container.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => toggleProvider(chip.dataset.chipProvider));
+  });
+}
+
+function renderCategoryChips() {
+  const container = document.getElementById('category-chips');
+  container.innerHTML = categories.map(c =>
+    `<button class="chip ${selectedCategories.has(c)?'active':''}" data-chip-category="${c}" aria-pressed="${selectedCategories.has(c)}">${c}</button>`
+  ).join('');
+  container.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      if (selectedCategories.has(chip.dataset.chipCategory)) selectedCategories.delete(chip.dataset.chipCategory);
+      else selectedCategories.add(chip.dataset.chipCategory);
+      currentPage = 1;
+      renderCategoryChips();
+      renderModels();
+    });
+  });
+}
+
+function getFilteredModels() {
+  return models.filter(m => {
+    if (selectedProviders.size && !selectedProviders.has(m.provider)) return false;
+    if (selectedCategories.size && !selectedCategories.has(m.category)) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const prov = providers.find(p => p.id === m.provider);
+      if (!m.name.toLowerCase().includes(q) && !prov.name.toLowerCase().includes(q) && !m.desc.toLowerCase().includes(q) && !m.category.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderModels() {
+  const filtered = getFilteredModels();
+  const grid = document.getElementById('model-grid');
+  const empty = document.getElementById('empty-state');
+  const pag = document.getElementById('pagination');
+
+  if (filtered.length === 0) {
+    grid.innerHTML = '';
+    empty.classList.add('visible');
+    pag.innerHTML = '';
+    return;
+  }
+  empty.classList.remove('visible');
+
+  const totalPages = Math.ceil(filtered.length / perPage);
+  if (currentPage > totalPages) currentPage = totalPages;
+  const start = (currentPage - 1) * perPage;
+  const pageModels = filtered.slice(start, start + perPage);
+
+  grid.innerHTML = pageModels.map(m => {
+    const prov = providers.find(p => p.id === m.provider);
+    const isCompared = compareList.includes(m.id);
+    return `
+    <article class="model-card" role="listitem" aria-label="${m.name} by ${prov.name}">
+      <div class="model-provider-bar">
+        <div class="model-provider-logo" style="background:${prov.color}" aria-hidden="true">${prov.letter}</div>
+        <div class="model-provider-info">
+          <div class="model-provider-name">${prov.name}</div>
+          <div class="model-provider-label">${m.category} Model</div>
+        </div>
+      </div>
+      <div class="model-body">
+        <div class="model-name">${m.name}</div>
+        <div class="model-desc">${m.desc}</div>
+        <div class="model-specs">
+          <div class="spec"><div class="spec-value">${m.context}</div><div class="spec-label">Context</div></div>
+          <div class="spec"><div class="spec-value">${m.price}</div><div class="spec-label">Price</div></div>
+          <div class="spec"><div class="spec-value">${m.latency}</div><div class="spec-label">Latency</div></div>
+        </div>
+        <div class="model-actions">
+          <button class="btn-details" aria-label="View details for ${m.name}">View Details</button>
+          <label class="compare-check">
+            <input type="checkbox" ${isCompared?'checked':''} data-compare-id="${m.id}" aria-label="Add ${m.name} to comparison">
+            Compare
+          </label>
+        </div>
+      </div>
+    </article>`;
+  }).join('');
+
+  grid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => toggleCompare(parseInt(cb.dataset.compareId)));
+  });
+
+  renderPagination(totalPages);
+}
+
+function renderPagination(totalPages) {
+  const pag = document.getElementById('pagination');
+  if (totalPages <= 1) { pag.innerHTML = ''; return; }
+  let html = `<button class="page-btn" ${currentPage===1?'disabled':''} data-page="${currentPage-1}" aria-label="Previous page">&larr;</button>`;
+  for (let i = 1; i <= totalPages; i++) {
+    html += `<button class="page-btn ${i===currentPage?'active':''}" data-page="${i}" aria-label="Page ${i}" ${i===currentPage?'aria-current="page"':''}>${i}</button>`;
+  }
+  html += `<button class="page-btn" ${currentPage===totalPages?'disabled':''} data-page="${currentPage+1}" aria-label="Next page">&rarr;</button>`;
+  pag.innerHTML = html;
+  pag.querySelectorAll('.page-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = parseInt(btn.dataset.page);
+      const tp = Math.ceil(getFilteredModels().length / perPage);
+      if (p >= 1 && p <= tp) { currentPage = p; renderModels(); document.getElementById('models').scrollIntoView({behavior:'smooth'}); }
+    });
+  });
+}
+
+function toggleCompare(id) {
+  const idx = compareList.indexOf(id);
+  if (idx >= 0) compareList.splice(idx, 1);
+  else {
+    if (compareList.length >= 4) {
+      alert('You can compare up to 4 models at a time.');
+      renderModels();
+      return;
+    }
+    compareList.push(id);
+  }
+  renderCompareBar();
+}
+
+function renderCompareBar() {
+  const bar = document.getElementById('compare-bar');
+  const items = document.getElementById('compare-items');
+  if (compareList.length === 0) { bar.classList.remove('visible'); return; }
+  bar.classList.add('visible');
+  items.innerHTML = compareList.map(id => {
+    const m = models.find(x => x.id === id);
+    return `<div class="compare-item"><span>${m.name}</span><button aria-label="Remove ${m.name} from comparison" data-remove="${id}">&times;</button></div>`;
+  }).join('');
+  items.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => { toggleCompare(parseInt(btn.dataset.remove)); renderModels(); });
+  });
+}
+
+document.getElementById('btn-compare-action').addEventListener('click', () => {
+  if (compareList.length < 2) { alert('Select at least 2 models to compare.'); return; }
+  alert('Comparing: ' + compareList.map(id => models.find(m=>m.id===id).name).join(', '));
+});
+
+document.getElementById('search-input').addEventListener('input', e => {
+  searchQuery = e.target.value.trim();
+  currentPage = 1;
+  renderModels();
+});
+
+renderProviders();
+renderProviderChips();
+renderCategoryChips();
+renderModels();
+</script>
+</body>
+</html>

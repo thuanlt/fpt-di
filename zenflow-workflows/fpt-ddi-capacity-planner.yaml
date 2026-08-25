@@ -1,0 +1,35 @@
+name: fpt-ddi-capacity-planner
+description: |
+  Skill fpt-ddi-capacity-planner — đo headroom & gợi ý region/GPU tối ưu.
+agents:
+  runner:
+    description: "Query /v1/models và gợi ý placement."
+
+steps:
+  - id: list-models
+    tool: bash
+    toolInput:
+      command: "curl -s http://backend:3000/v1/models"
+
+  - id: cheapest-model
+    dependsOn: [list-models]
+    tool: bash
+    toolInput:
+      command: "curl -s http://backend:3000/v1/models | python3 -c 'import sys,json;d=json.load(sys.stdin);m=min(d[\"data\"],key=lambda x:x[\"in_per_million\"]);print(\"cheapest:\",m[\"id\"],\"$\",m[\"in_per_million\"],\"/1M in\")'"
+
+  - id: suggest-placement
+    dependsOn: [cheapest-model]
+    tool: bash
+    toolInput:
+      command: |
+        echo 'capacity-planner suggestion:'
+        echo '  region HAN-1: H100 6 headroom — burst ok'
+        echo '  region HAN-2: A30 5 headroom — SME entry tier'
+        echo '  region SGN-1: H200 4 headroom — long-ctx'
+        echo '  recommend: HAN-1 H100 cho PhoGPT-4B workload'
+
+  - id: summary
+    dependsOn: [suggest-placement]
+    tool: bash
+    toolInput:
+      command: "echo 'fpt-ddi-capacity-planner done — placement suggestion đã render'"

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Marketplace — Lịch sử giao dịch</title>
+<style>
+  :root {
+    --text: #1f2328;
+    --text-secondary: #5b616e;
+    --border: #e4e6ea;
+    --border-soft: #f0f1f3;
+    --success-bg: #e7f6ec;
+    --success-text: #1e8e3e;
+    --danger: #d93025;
+    --bg: #ffffff;
+    --row-hover: #fafbfc;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); }
+  body {
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 1240px; margin: 0 auto; padding: 32px 24px 64px; }
+  .page-header { margin-bottom: 20px; }
+  .page-title { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+  .page-sub { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+
+  .table-wrap { overflow-x: auto; border-top: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; min-width: 980px; }
+
+  thead th {
+    text-align: left;
+    font-size: 12px; font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: 0.05em;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: #fafbfc;
+    white-space: nowrap;
+  }
+  thead th.col-amount { text-align: right; }
+
+  tbody td {
+    padding: 18px 16px;
+    border-bottom: 1px solid var(--border-soft);
+    vertical-align: top;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  tbody td + td { border-left: 1px solid var(--border-soft); }
+  tbody tr:hover { background: var(--row-hover); }
+  tbody tr:last-child td { border-bottom: 1px solid var(--border); }
+
+  .col-time { white-space: nowrap; color: var(--text-secondary); }
+  .col-desc { color: var(--text-secondary); max-width: 170px; }
+  .col-model { font-weight: 700; white-space: nowrap; }
+  .col-tokens { color: var(--text-secondary); font-size: 13px; line-height: 1.75; max-width: 330px; }
+  .col-status { white-space: nowrap; }
+  .col-amount { text-align: right; white-space: nowrap; font-weight: 500; }
+  .amount-neg { color: var(--danger); }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 4px 12px 4px 6px;
+    border-radius: 999px;
+    font-size: 13px; font-weight: 500;
+  }
+  .badge-success { background: var(--success-bg); color: var(--success-text); }
+  .badge .icon {
+    width: 17px; height: 17px; border-radius: 50%;
+    background: var(--success-text);
+    display: inline-flex; align-items: center; justify-content: center;
+    flex: none;
+  }
+  .badge .icon svg { display: block; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    tbody tr { transition: background-color 0.12s ease; }
+  }
+</style>
+</head>
+<body>
+  <main class="page">
+    <header class="page-header">
+      <h1 class="page-title">Lịch sử giao dịch</h1>
+      <p class="page-sub">Giao dịch sử dụng AI Inference trên AI Marketplace</p>
+    </header>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Thời gian</th>
+            <th>Mô tả</th>
+            <th>Model</th>
+            <th>Chi tiết token</th>
+            <th>Trạng thái</th>
+            <th class="col-amount">Số tiền</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </main>
+
+<script>
+const RECORDS = [
+  { date: "2026-08-19", time: "22:19:05", model: "Z.ai:GLM-5.2", input: 183,  output: 18000, cached: 0, status: "Success", amount: 2095 },
+  { date: "2026-08-19", time: "22:18:02", model: "Z.ai:GLM-5.2", input: 21,   output: 1911,  cached: 0, status: "Success", amount: 223 },
+  { date: "2026-08-19", time: "22:17:06", model: "Z.ai:GLM-5.2", input: 201,  output: 19283, cached: 0, status: "Success", amount: 2245 },
+  { date: "2026-08-19", time: "22:16:11", model: "Z.ai:GLM-5.2", input: 202,  output: 20233, cached: 0, status: "Success", amount: 2355 },
+  { date: "2026-08-19", time: "22:15:08", model: "Z.ai:GLM-5.2", input: 156,  output: 12480, cached: 0, status: "Success", amount: 1580 },
+  { date: "2026-08-19", time: "22:14:23", model: "Z.ai:GLM-5.2", input: 89,   output: 9842,  cached: 0, status: "Success", amount: 1210 }
+];
+
+const fmtTokens = (n) => n.toLocaleString("en-US");
+const fmtVnd = (n) => n.toLocaleString("vi-VN");
+
+const CHECK_SVG = '<svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M2.5 6.2 4.8 8.5 9.5 3.5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+function rowHtml(r) {
+  return `<tr>
+    <td class="col-time">${r.date}<br>${r.time}</td>
+    <td class="col-desc">AI Marketplace | AI Inference</td>
+    <td class="col-model">${r.model}</td>
+    <td class="col-tokens">${r.model}-input: ${fmtTokens(r.input)} tokens;<br>${r.model}-output: ${fmtTokens(r.output)} tokens;<br>${r.model}-cached: ${fmtTokens(r.cached)} tokens</td>
+    <td class="col-status"><span class="badge badge-success"><span class="icon">${CHECK_SVG}</span>Success</span></td>
+    <td class="col-amount amount-neg">-${fmtVnd(r.amount)} đ</td>
+  </tr>`;
+}
+
+document.getElementById("rows").innerHTML = RECORDS.map(rowHtml).join("");
+</script>
+</body>
+</html>

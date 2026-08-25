@@ -1,0 +1,25 @@
+name: fpt-ddi-endpoint-ops
+description: |
+  Skill fpt-ddi-endpoint-ops — list/create/scale/stop dedicated endpoints trên FPT DDI.
+  Workflow chạy hoàn toàn bằng tool step (curl), không cần LLM key.
+agents:
+  runner:
+    description: "Thực thi CLI calls tới FPT DDI backend."
+
+steps:
+  - id: list-endpoints
+    tool: bash
+    toolInput:
+      command: "curl -s http://backend:3000/v1/batch | head -c 2000"
+
+  - id: list-models
+    tool: bash
+    toolInput:
+      command: "curl -s http://backend:3000/v1/models"
+    dependsOn: [list-endpoints]
+
+  - id: summary
+    dependsOn: [list-endpoints, list-models]
+    tool: bash
+    toolInput:
+      command: "echo 'fpt-ddi-endpoint-ops done — endpoints + models từ backend thật'"

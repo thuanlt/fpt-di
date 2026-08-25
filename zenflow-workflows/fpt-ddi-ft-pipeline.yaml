@@ -1,0 +1,37 @@
+name: fpt-ddi-ft-pipeline
+description: |
+  Skill fpt-ddi-ft-pipeline — chạy fine-tune → deploy lên dedicated.
+  Workflow: kiểm catalog model có support batch → báo cáo fake checklist deploy.
+agents:
+  runner:
+    description: "Chạy fine-tune pipeline."
+
+steps:
+  - id: list-ft-models
+    tool: bash
+    toolInput:
+      command: "curl -s http://backend:3000/v1/models"
+
+  - id: pick-base
+    dependsOn: [list-ft-models]
+    tool: bash
+    toolInput:
+      command: "curl -s http://backend:3000/v1/models | python3 -c 'import sys,json;d=json.load(sys.stdin);print(\"base model:\",d[\"data\"][0][\"id\"])'"
+
+  - id: deploy-checklist
+    dependsOn: [pick-base]
+    tool: bash
+    toolInput:
+      command: |
+        echo 'ft-pipeline checklist:'
+        echo '  ✓ base model khả dụng'
+        echo '  ☐ LoRA adapter stash storage VN'
+        echo '  ☐ KV cache warmup pool'
+        echo '  ☐ data residency audit NĐ 13/2023'
+        echo '  ☐ roll to dedicated endpoint'
+
+  - id: summary
+    dependsOn: [deploy-checklist]
+    tool: bash
+    toolInput:
+      command: "echo 'fpt-ddi-ft-pipeline done — checklist sẵn sàng deploy'"

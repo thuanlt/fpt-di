@@ -1,0 +1,11 @@
+name: verify-bash-real
+steps:
+  - id: probe
+    tool: bash
+    toolInput:
+      command: "curl -sv http://localhost:5173/v1/models 2>/tmp/curl-err > /tmp/zenflow-probe.txt ; echo \"rc=$?\"; ls -la /tmp/zenflow-probe.txt; cat /tmp/curl-err | tail -10"
+  - id: show
+    dependsOn: [probe]
+    tool: bash
+    toolInput:
+      command: "cat /tmp/zenflow-probe.txt | head -c 500"

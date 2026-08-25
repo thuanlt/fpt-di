@@ -1,0 +1,47 @@
+name: fpt-ddi-experiment-runner
+description: |
+  Skill fpt-ddi-experiment-runner — chạy A/B test, ramp & promote variant.
+agents:
+  runner:
+    description: "Chạy experiment campaign qua /v1/batch."
+
+steps:
+  - id: make-control-file
+    tool: bash
+    toolInput:
+      command: "printf '{\"prompt\":\"control: slogan FPT dedicated\"}\\n' > /tmp/exp-control.jsonl"
+
+  - id: make-variant-file
+    tool: bash
+    toolInput:
+      command: "printf '{\"prompt\":\"variant B: slogan data residency VN, giá rẻ 50%\"}\\n' > /tmp/exp-variant.jsonl"
+
+  - id: submit-control
+    dependsOn: [make-control-file]
+    tool: bash
+    toolInput:
+      command: "curl -s -X POST http://backend:3000/v1/batch -F 'model=PhoGPT-4B' -F 'file=@/tmp/exp-control.jsonl'"
+
+  - id: submit-variant
+    dependsOn: [make-variant-file]
+    tool: bash
+    toolInput:
+      command: "curl -s -X POST http://backend:3000/v1/batch -F 'model=PhoGPT-4B' -F 'file=@/tmp/exp-variant.jsonl'"
+
+  - id: poll-both
+    dependsOn: [submit-control, submit-variant]
+    tool: bash
+    toolInput:
+      command: |
+        for i in $(seq 1 12); do
+          C=$(curl -s http://backend:3000/v1/batch | python3 -c "import sys,json;d=json.load(sys.stdin);print(sum(1 for j in d['data'][:2] if j['status'] in ('completed','failed')))")
+          echo "poll $i: $C/2 jobs xong"
+          if [ "$C" = "2" ]; then break; fi
+          sleep 2
+        done
+
+  - id: summary
+    dependsOn: [poll-both]
+    tool: bash
+    toolInput:
+      command: "echo 'fpt-ddi-experiment-runner done — control + variant đã submit, thread xong qua batch API'"

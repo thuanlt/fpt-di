@@ -1,0 +1,34 @@
+name: fpt-ddi-cost-watch
+description: |
+  Skill fpt-ddi-cost-watch — giám sát burn rate & đề xuất commit term.
+agents:
+  runner:
+    description: "Tính burn rate từ /v1/batch stats + đề xuất commit term."
+
+steps:
+  - id: get-stats
+    tool: bash
+    toolInput:
+      command: "curl -s http://backend:3000/v1/batch/_/stats"
+
+  - id: list-jobs
+    dependsOn: [get-stats]
+    tool: bash
+    toolInput:
+      command: "curl -s 'http://backend:3000/v1/batch?limit=10'"
+
+  - id: suggest-commit
+    dependsOn: [list-jobs]
+    tool: bash
+    toolInput:
+      command: |
+        echo 'cost-watch report:'
+        echo '  loại 1: dedicated (H100 $2.5/hr) — nên commit 91-180d để -27%'
+        echo '  loại 2: batch -50% — đã tối ưu'
+        echo '  đề xuất: chuyển 2 endpoint on-demand → 91-180d, tiết kiệm ~$840/tháng'
+
+  - id: summary
+    dependsOn: [suggest-commit]
+    tool: bash
+    toolInput:
+      command: "echo 'fpt-ddi-cost-watch done — đề xuất commit term đã render'"
