@@ -1,0 +1,92 @@
+# Default values — an toàn để `helm template` không cần -f.
+# Prod dùng values.prod.yaml, cluster dev FPT dùng values.fpt-dev.yaml.
+
+namespace: ddi
+
+image:
+  backend: registry.fpt.vn/ddi/backend:v2.1.0
+  vllmAdapter: registry.fpt.vn/ddi/vllm-adapter:v2.1.0
+  pullPolicy: IfNotPresent
+  pullSecret: ""
+
+envSecret:
+  create: false
+  name: ddi-prod-env
+  data: {}
+
+keysAdminRequired: "true"
+
+web:
+  enabled: true
+  replicas: 2
+  WORKER_MODE: web
+  serviceType: ClusterIP
+  resources:
+    requests: { cpu: "500m", memory: "1Gi" }
+    limits:   { cpu: "1500m", memory: "2Gi" }
+  hpa: { enabled: false }
+
+worker:
+  enabled: true
+  replicas: 1
+  WORKER_MODE: worker
+  resources:
+    requests: { cpu: "500m", memory: "1Gi" }
+    limits:   { cpu: "2000m", memory: "4Gi" }
+  hpa: { enabled: false }
+
+vllmAdapter:
+  enabled: true
+  replicas: 1
+  resources:
+    requests: { cpu: "200m", memory: "256Mi" }
+    limits:   { cpu: "1000m", memory: "1Gi" }
+
+# T4.1 — Playground preview pool (O1): 1 GPU luôn warm cho BYOM Try-in-Playground
+# Prod: 1 H100 thật + vLLM `--served-models-dir` quét /data/byom, load động model=byom-<id>
+playgroundPool:
+  enabled: false            # default tắt — chỉ bật khi triển khai O1 thật
+  replicas: 1               # 1 pod luôn warm để khởi động lần đầu ~30-60s, sau đó <200ms
+  realVllm: false           # prod: true (dùng image vllm/vllm-openai); dev: false (giả lập)
+  image: ""                 # prod: "vllm/vllm-openai:latest" — rỗng = dùng image.vllmAdapter
+  servedModelsDir: "/data/byom"
+  weightsPvc: ""            # trỏ tới PVC byom dùng chung (read-only); rỗng = emptyDir
+  gpu:
+    count: 0                # prod: 1 (yêu cầu 1 H100); dev/giả lập: 0
+  resources:
+    requests: { cpu: "200m", memory: "256Mi" }
+    limits:   { cpu: "1000m", memory: "1Gi" }
+  nodeSelector: {}          # prod: { accelerator: "nvidia-h100" }
+  extraEnv: []
+
+postgres:
+  enabled: false
+  host: postgres
+  db: ddi
+  user: ddi
+  sslmode: require
+
+redis:
+  enabled: false
+  host: redis
+  db: 0
+
+storage:
+  storageClass: premium-ssd-10000
+  accessMode: ReadWriteOnce
+  byom: { size: 100Gi }
+  batch: { size: 20Gi }
+  postgresSize: 50Gi
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  tls: false
+  hosts:
+    console: console.fpt-ddi.vn
+    api: api.fpt-ddi.vn
+
+networkPolicy: { enabled: false }
+securityContext: {}
+pdb: { enabled: false }

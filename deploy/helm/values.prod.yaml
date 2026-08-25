@@ -1,0 +1,117 @@
+# FPT DDI Partner Console — Helm values production
+# Mọi secret mount qua SealedSecret/secrets-managed (không hardcode). Override qua `-f` ngoài.
+
+namespace: ddi-prod
+
+image:
+  backend: registry.fpt.vn/ddi/backend:v2.1.0
+  vllmAdapter: registry.fpt.vn/ddi/vllm-adapter:v2.1.0
+  pullPolicy: IfNotPresent
+  pullSecret: regcred   # pre-created k8s Secret dockercfg cho registry.fpt.vn
+
+# Mọi KEY=VALUE trong .env.prod được mount vào Secret chung, envFrom tới mọi service
+envSecret:
+  create: false                # true → tạo Secret từ stringData (dev/CI); prod tạo ngoài qua kubectl
+  name: ddi-prod-env
+  data: {}                     # KHÔNG commit plaintext ở đây — điền qua kubectl/sealed-secret
+
+web:
+  enabled: true
+  replicas: 3
+  WORKER_MODE: web
+  resources:
+    requests: { cpu: "500m", memory: "1Gi" }
+    limits:   { cpu: "1500m", memory: "2Gi" }
+  readinessProbe: /health
+  livenessProbe:  /health
+  hpa:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    cpuUtil: 70
+
+worker:
+  enabled: true
+  replicas: 2
+  WORKER_MODE: worker
+  resources:
+    requests: { cpu: "1000m", memory: "2Gi" }
+    limits:   { cpu: "2000m", memory: "4Gi" }
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    cpuUtil: 80
+
+vllmAdapter:
+  enabled: true
+  replicas: 2
+  resources:
+    requests: { cpu: "300m", memory: "512Mi" }
+    limits:   { cpu: "1000m", memory: "1Gi" }
+
+# T4.1 — Playground preview pool (O1): 1 H100 thật luôn warm
+playgroundPool:
+  enabled: true
+  replicas: 1
+  realVllm: true
+  image: "vllm/vllm-openai:latest"
+  servedModelsDir: "/data/byom"
+  weightsPvc: "ddi-byom-weights"   # PVC dùng chung với backend (read-only)
+  gpu:
+    count: 1                       # 1 H100 thật
+  resources:
+    requests: { cpu: "1000m", memory: "8Gi" }
+    limits:   { cpu: "2000m", memory: "16Gi" }
+  nodeSelector:
+    accelerator: "nvidia-h100"
+  extraEnv:
+    - { name: VLLM_MAX_MODEL_LEN,     value: "131072" }
+    - { name: VLLM_GPU_MEMORY_UTIL,   value: "0.85" }
+    - { name: VLLM_SERVED_MODELS_DIR, value: "/data/byom" }
+
+postgres:
+  # managed externally (RDS-style HA), CI in(chart) tạm false; nếu chạy in-chart: true
+  enabled: false
+  host: ddi-prod-pg.internal    # override qua --set postgres.host=...
+  db: ddi
+  user: ddi
+  # password từ envSecret
+  sslmode: require
+
+redis:
+  enabled: false               # managed externally (ElastiCache-style + Sentinel)
+  host: ddi-prod-redis.internal
+  db: 0
+  # password từ envSecret
+
+storage:
+  storageClass: ssd          # ← tên StorageClass thật của cluster prod
+  accessMode: ReadWriteMany  # prod: web+worker nhiều pod → cần RWX (CSI hỗ trợ) hoặc chuyển sang object storage
+  byom:
+    size: 200Gi
+  batch:
+    size: 100Gi
+  postgresSize: 100Gi
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  tls: true
+  hosts:
+    console: console.fpt-ddi.vn
+    api: api.fpt-ddi.vn
+
+networkPolicy:
+  enabled: true
+  # default-deny ingress; allow chỉ same-namespace + egress tới postgres/redis
+
+securityContext: {}
+# node:20-alpine mặc định chạy root; nếu muốn harden nonRoot cần build image có user riêng (việc sau).
+
+pdb:
+  enabled: true
+  minAvailable: 1

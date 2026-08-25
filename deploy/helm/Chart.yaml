@@ -1,0 +1,12 @@
+apiVersion: v2
+name: fpt-ddi
+description: FPT DDI Partner Console — API + partner-console + workers + vllm-adapter
+type: application
+version: 2.1.0
+appVersion: "2.1.0"
+keywords:
+  - fpt-ddi
+  - partner-console
+  - llm-inference
+maintainers:
+  - name: FPT DDI team

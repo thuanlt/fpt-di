@@ -1,0 +1,84 @@
+# Values cho cluster dev FPT SmartCloud: ai-studio-dev-han-kxfny1nx (K8s 1.31.4)
+# Node pools: 3x(16vCPU/32GB/100Gi SSD) + 1x(8vCPU/16GB/50Gi) — đủ chạy full stack.
+# Mục tiêu: launch nhanh 1 bản cho user dùng thử — self-contained, không phụ thuộc DB/registry nội bộ.
+
+namespace: ddi
+
+image:
+  backend: <REGISTRY>/ddi-backend:v2.1.0        # thay <REGISTRY> = docker.io/<user> hoặc registry nội bộ
+  vllmAdapter: <REGISTRY>/ddi-vllm-adapter:v2.1.0
+  pullPolicy: IfNotPresent
+  pullSecret: ""                                 # registry public → không cần pull secret
+
+envSecret:
+  create: false
+  name: ddi-dev-env
+  data: {}
+
+# Dev trial: console tự tạo key được → tắt admin-gate
+keysAdminRequired: "false"
+
+web:
+  enabled: true
+  replicas: 1
+  WORKER_MODE: all          # web+worker chung 1 pod cho dev — đúng behaviour preview, tránh double-process
+  serviceType: LoadBalancer # FPT SmartCloud cấp LB IP → user truy cập http://<IP>:3000
+  resources:
+    requests: { cpu: "500m", memory: "1Gi" }
+    limits:   { cpu: "2000m", memory: "3Gi" }
+  hpa: { enabled: false }
+
+worker:
+  enabled: false            # WORKER_MODE=all trong web rồi
+
+vllmAdapter:
+  enabled: true
+  replicas: 1
+  resources:
+    requests: { cpu: "200m", memory: "256Mi" }
+    limits:   { cpu: "1000m", memory: "1Gi" }
+
+# T4.1 — Playground preview pool (O1): dev cluster không có GPU thật → dùng vllm-adapter giả lập
+playgroundPool:
+  enabled: true
+  replicas: 1
+  realVllm: false           # dev: giả lập, không cần GPU
+  image: ""                 # rỗng = dùng image.vllmAdapter
+  servedModelsDir: "/data/byom"
+  weightsPvc: ""            # dev: emptyDir (chưa có BYOM weights thật trên cluster)
+  gpu:
+    count: 0                # dev: 0 (không có GPU thực)
+  resources:
+    requests: { cpu: "200m", memory: "256Mi" }
+    limits:   { cpu: "1000m", memory: "1Gi" }
+  nodeSelector: {}
+  extraEnv: []
+
+# Postgres + Redis in-cluster (StatefulSet), tự chạy migrations 001+002+003+004 khi khởi tạo lần đầu
+postgres:
+  enabled: true
+  host: postgres            # headless Service tên "postgres" trong namespace
+  db: ddi
+  user: ddi
+  sslmode: disable
+redis:
+  enabled: true
+  host: redis
+  db: 0
+
+storage:
+  storageClass: premium-ssd-10000   # ← THAY bằng tên thật: kubectl get storageclass
+  accessMode: ReadWriteOnce         # dev: 1 pod backend → RWO đủ
+  byom: { size: 100Gi }
+  batch: { size: 20Gi }
+  postgresSize: 50Gi
+
+ingress:
+  enabled: false            # dev dùng LoadBalancer, chưa cần domain/TLS
+
+networkPolicy:
+  enabled: false            # dev mở thoải mái; prod bật true
+
+securityContext: {}         # node:20-alpine chạy root mặc định — không ép nonRoot ở dev
+
+pdb: { enabled: false }

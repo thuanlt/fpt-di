@@ -1,0 +1,29 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# cài curl + zip cho install zenflow, jq để debug
+RUN apk add --no-cache curl jq bash unzip tar
+
+# cài zenflow binary tĩnh
+ARG ZENFLOW_VERSION=v0.2.2
+RUN curl -fsSL https://zenflow.sh/install.sh | ZENFLOW_INSTALL_DIR=/usr/local/bin sh \
+    && zenflow --version
+
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+COPY server.js ./
+COPY src ./src
+COPY db ./db
+COPY zenflow-workflows /app/zenflow-workflows
+
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV ZENFLOW_BIN=/usr/local/bin/zenflow
+ENV ZENFLOW_WORKFLOWS_DIR=/app/zenflow-workflows
+ENV ZENFLOW_WORKDIR_ROOT=/tmp/zenflow-runs
+ENV ZENFLOW_MODEL=google/gemini-2.0-flash
+EXPOSE 3000
+
+CMD ["node", "server.js"]

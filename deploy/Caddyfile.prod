@@ -1,0 +1,37 @@
+{
+  admin off
+  email ops@fpt-ddi.vn
+}
+
+console.fpt-ddi.vn {
+  encode zstd gzip
+
+  header {
+    Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    Content-Security-Policy "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://s3-han02.fptcloud.com https://huggingface.co"
+    -Server
+  }
+
+  root * /srv
+
+  handle /v1/* {
+    reverse_proxy backend:3000 {
+      header_up Host {host}
+    }
+  }
+
+  handle /health {
+    reverse_proxy backend:3000
+  }
+
+  handle {
+    @html path / *.html
+    header @html Cache-Control "no-store, max-age=0"
+    try_files {path} /index.html
+    file_server
+  }
+}

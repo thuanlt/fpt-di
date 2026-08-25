@@ -1,0 +1,129 @@
+services:
+  # ─── API + partner-console (web/API-only, không start workers) — scale được ───
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    env_file:
+      - .env.prod
+    environment:
+      WORKER_MODE: web
+      PORT: 3000
+      NODE_ENV: production
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_DB: ${PG_DB:-ddi}
+      PG_USER: ${PG_USER:-ddi}
+      PG_PASSWORD: ${PG_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: ${REDIS_DB:-0}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      KEYS_ADMIN_REQUIRED: "true"
+      BATCH_STORAGE_ROOT: /data/batch
+      BYOM_STORAGE_ROOT: /data/byom
+    volumes:
+      - batchdata:/data/batch
+      - byomdata:/data/byom
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  # ─── worker (chỉ chạy batch/byom/endpoint workers, không nhận API traffic) ───
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    env_file:
+      - .env.prod
+    environment:
+      WORKER_MODE: worker
+      PORT: 3001
+      NODE_ENV: production
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_DB: ${PG_DB:-ddi}
+      PG_USER: ${PG_USER:-ddi}
+      PG_PASSWORD: ${PG_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: ${REDIS_DB:-0}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      KEYS_ADMIN_REQUIRED: "true"
+      BATCH_STORAGE_ROOT: /data/batch
+      BYOM_STORAGE_ROOT: /data/byom
+      BYOM_WORKER_CONCURRENCY: 2
+      FPT_DDI_BATCH_CONCURRENCY: 4
+      VLLM_BASE_URL: http://vllm-adapter:8000
+      ZENFLOW_BIN: /usr/local/bin/zenflow
+      ZENFLOW_WORKFLOWS_DIR: /app/zenflow-workflows
+      ZENFLOW_WORKDIR_ROOT: /tmp/zenflow-runs
+      ZENFLOW_MODEL: ${ZENFLOW_MODEL:-google/gemini-2.0-flash}
+    volumes:
+      - batchdata:/data/batch
+      - byomdata:/data/byom
+    depends_on:
+      - postgres
+      - redis
+      - vllm-adapter
+    restart: unless-stopped
+
+  # ─── vllm-adapter (proxy inference GPU) ───
+  vllm-adapter:
+    build:
+      context: .
+      dockerfile: Dockerfile.vllm-adapter
+    environment:
+      PORT: 8000
+      NODE_ENV: production
+    restart: unless-stopped
+
+  # ─── Caddy edge (TLS ACME + security headers) — chỉ publish 80/443 ───
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    volumes:
+      - ./Caddyfile.prod:/etc/caddy/Caddyfile:ro
+      - ../partner-console:/srv:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+    restart: unless-stopped
+
+  # ─── Postgres prod (SSL-only, password) ───
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${PG_USER:-ddi}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: ${PG_DB:-ddi}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-ddi} -d ${PG_DB:-ddi}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # ─── Redis prod (password, persistence) ───
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - redisdata:/data
+    restart: unless-stopped
+
+volumes:
+  pgdata: {}
+  redisdata: {}
+  batchdata: {}
+  byomdata: {}
+  caddy_data: {}
+  caddy_config: {}
