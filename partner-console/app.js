@@ -6,7 +6,7 @@
 /* ── API key holder — lưu trong localStorage, tự động đính kèm vào mọi fetch /v1/* operational ── */
 const _origFetch = window.fetch.bind(window);
 let ACTIVE_API_KEY = localStorage.getItem("fptDdiKey") || "";
-const AUTH_PATHS = ["/v1/batch", "/v1/models", "/v1/endpoints", "/v1/skills", "/v1/chat", "/v1/byom", "/v1/audit"];
+const AUTH_PATHS = ["/v1/batch", "/v1/models", "/v1/endpoints", "/v1/skills", "/v1/chat", "/v1/byom", "/v1/audit", "/v1/price-packs", "/v1/dashboard"];
 let _lastAuthToast = 0;
 function authFailToast(status, json) {
   const now = Date.now();
@@ -957,6 +957,10 @@ async function openEndpointDrawer(id) {
       if (r.ok) {
         const j = await r.json();
         const m = j.data?.totals || {};
+        const tp = j.data?.throughput;
+        const tpHtml = tp ? `
+          <dt>Throughput</dt><dd class="num">${tp.tps} tok/s <span class="mono" style="color:var(--ink-faint)">(baseline ${tp.baseline_tps})</span></dd>
+          <dt>Engine improvement</dt><dd class="num">${tp.improvement_pct >= 0 ? "+" : ""}${tp.improvement_pct}% vs vLLM</dd>` : "";
         metricsHtml = `
         <h3>Metrics (thật — 24h)</h3>
         <dl class="kv">
@@ -968,6 +972,7 @@ async function openEndpointDrawer(id) {
           <dt>Total tokens</dt><dd class="num">${(m.total_tokens ?? 0).toLocaleString("en-US")}</dd>
           <dt>Tokens / sec</dt><dd class="num">${m.tokens_per_sec ?? 0}</dd>
           <dt>Cost</dt><dd class="num">$${m.cost_usd ?? "0.000000"}</dd>
+          ${tpHtml}
         </dl>`;
       }
     } catch (_) {}
@@ -1297,6 +1302,34 @@ function modalRate() {
 
 function updatePricePreview() {
   $("#pricePreview").textContent = "$" + modalRate().toFixed(2) + "/hr";
+  updatePricePackHint();
+}
+
+async function updatePricePackHint() {
+  const el = $("#pricePackHint");
+  if (!el) return;
+  const seg = $("#fSegment").value;
+  const gpu = $("#fGpu").value;
+  const region = $("#fRegion").value;
+  try {
+    const res = await fetch("/v1/price-packs?segment=" + encodeURIComponent(seg) + "&gpu=" + encodeURIComponent(gpu) + "&region=" + encodeURIComponent(region));
+    if (!res.ok) { el.hidden = true; return; }
+    const json = await res.json();
+    const pack = (json.data || [])[0];
+    if (pack) {
+      const quota = [];
+      if (pack.quotaRpm != null) quota.push("RPM " + pack.quotaRpm);
+      if (pack.quotaTpm != null) quota.push("TPM " + Number(pack.quotaTpm).toLocaleString());
+      const disc = pack.discountPct != null && Number(pack.discountPct) > 0 ? " · chiết " + pack.discountPct + "%" : "";
+      el.innerHTML = "Gói giá <b>" + esc(seg) + " / " + esc(gpu) + " / " + esc(region) + "</b>: $" + Number(pack.ratePerHour).toFixed(2) + "/hr" + disc + (quota.length ? " · quota " + quota.join(", ") : "");
+      el.hidden = false;
+    } else {
+      el.innerHTML = '<span class="pph-none">Không có gói giá cho ' + esc(seg) + " / " + esc(gpu) + " / " + esc(region) + " — dùng rate mặc định.</span>";
+      el.hidden = false;
+    }
+  } catch (e) {
+    el.hidden = true;
+  }
 }
 
 function setMode(mode) {
@@ -2242,6 +2275,199 @@ function renderPricing() {
     </tr>`).join("");
 }
 
+/* ── US-06 Billing / Price packs ────────────── */
+let bpkData = [];
+async function renderBilling() {
+  const seg = $("#bpkSegment") ? $("#bpkSegment").value : "";
+  const url = "/v1/price-packs" + (seg ? "?segment=" + encodeURIComponent(seg) : "");
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const json = await res.json();
+    bpkData = json.data || [];
+  } catch (e) {
+    bpkData = [];
+  }
+  const n = bpkData.length;
+  $("#bpkCount").textContent = String(n);
+  const avgRate = n ? bpkData.reduce((s, p) => s + (Number(p.ratePerHour) || 0), 0) / n : 0;
+  $("#bpkAvgRate").textContent = "$" + avgRate.toFixed(2) + "/hr";
+  const withQuota = bpkData.filter((p) => p.quotaRpm != null || p.quotaTpm != null).length;
+  $("#bpkQuota").textContent = String(withQuota);
+  const disc = bpkData.filter((p) => p.discountPct != null && Number(p.discountPct) > 0);
+  const avgDisc = disc.length ? disc.reduce((s, p) => s + Number(p.discountPct), 0) / disc.length : 0;
+  $("#bpkDiscount").textContent = avgDisc.toFixed(1) + "%";
+  $("#bpkRows").innerHTML = bpkData.map((p) => `
+    <tr>
+      <td>${esc(p.segment)}</td>
+      <td class="num">${esc(p.gpu)}</td>
+      <td class="num">${esc(p.region)}</td>
+      <td class="num">$${Number(p.ratePerHour).toFixed(2)}</td>
+      <td class="num">${p.ratePerToken != null ? Number(p.ratePerToken).toExponential(2) : "—"}</td>
+      <td>${esc(p.commitment || "on-demand")}</td>
+      <td class="num">${p.discountPct != null && Number(p.discountPct) > 0 ? p.discountPct + "%" : "—"}</td>
+      <td class="num">${p.quotaRpm != null ? p.quotaRpm : "—"}</td>
+      <td class="num">${p.quotaTpm != null ? Number(p.quotaTpm).toLocaleString() : "—"}</td>
+    </tr>`).join("");
+  $("#bpkEmpty").hidden = n > 0;
+}
+
+/* ── US-07 Dashboard KPI ────────────────────── */
+let dashData = null;
+async function renderDashboard() {
+  const seg = $("#dashSegment") ? $("#dashSegment").value : "";
+  const range = $("#dashRange") ? $("#dashRange").value : "24h";
+  const url = "/v1/dashboard?range=" + encodeURIComponent(range) + (seg ? "&segment=" + encodeURIComponent(seg) : "");
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    dashData = await res.json();
+  } catch (e) {
+    dashData = null;
+  }
+  const k = (dashData && dashData.kpis) || {};
+  $("#dashRequests").textContent = k.requests != null ? Number(k.requests).toLocaleString() : "—";
+  $("#dashRequestsSub").textContent = range + (seg ? " · " + seg : " · all");
+  $("#dashCost").textContent = k.cost_usd != null ? "$" + Number(k.cost_usd).toFixed(2) : "—";
+  $("#dashP95").textContent = k.p95_latency_ms != null ? Math.round(k.p95_latency_ms) + "ms" : "—";
+  $("#dashErrRate").textContent = k.error_rate != null ? (Number(k.error_rate) * 100).toFixed(2) + "%" : "—";
+  $("#dashGuard").textContent = k.guardrail_blocks != null ? String(k.guardrail_blocks) : "—";
+  const rules = (dashData && dashData.guardrail_by_rule) || [];
+  $("#dashGuardSub").textContent = rules.length + " rules";
+  $("#dashGuardRules").innerHTML = rules.map((r) =>
+    `<li><b>${esc(r.rule)}</b><span class="mono" style="margin-left:auto">${r.blocked}</span></li>`).join("");
+  $("#dashGuardEmpty").hidden = rules.length > 0;
+  const series = (dashData && dashData.series) || [];
+  $("#dashSeriesRows").innerHTML = series.map((s) => `
+    <tr>
+      <td class="mono">${esc(s.ts)}</td>
+      <td class="num">${Number(s.requests).toLocaleString()}</td>
+      <td class="num">$${Number(s.cost_usd).toFixed(2)}</td>
+      <td class="num">${s.p95_latency_ms != null ? Math.round(s.p95_latency_ms) + "ms" : "—"}</td>
+    </tr>`).join("");
+  $("#dashSeriesEmpty").hidden = series.length > 0;
+  renderDashChart(series);
+}
+
+function renderDashChart(series) {
+  const el = $("#dashChart");
+  if (!el) return;
+  if (!series || !series.length) {
+    el.innerHTML = '<span class="dc-empty">Chưa có dữ liệu trong khoảng thời gian này.</span>';
+    return;
+  }
+  const W = 560, H = 240, padL = 46, padR = 16, padT = 16, padB = 28;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const reqs = series.map((s) => Number(s.requests) || 0);
+  const costs = series.map((s) => Number(s.cost_usd) || 0);
+  const maxReq = Math.max.apply(null, reqs.concat([1]));
+  const maxCost = Math.max.apply(null, costs.concat([1]));
+  const n = series.length;
+  const x = (i) => padL + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+  const yReq = (v) => padT + plotH - (v / maxReq) * plotH;
+  const yCost = (v) => padT + plotH - (v / maxCost) * plotH;
+  const lineReq = series.map((s, i) => (i ? "L" : "M") + x(i).toFixed(1) + "," + yReq(Number(s.requests) || 0).toFixed(1)).join(" ");
+  const lineCost = series.map((s, i) => (i ? "L" : "M") + x(i).toFixed(1) + "," + yCost(Number(s.cost_usd) || 0).toFixed(1)).join(" ");
+  let grid = "";
+  for (let g = 0; g <= 4; g++) {
+    const gy = padT + (g / 4) * plotH;
+    grid += `<line class="dc-grid" x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}"/>`;
+  }
+  const idxs = [0, Math.floor((n - 1) / 2), n - 1].filter((v, i, a) => a.indexOf(v) === i);
+  const xlabels = idxs.map((i) =>
+    `<text class="dc-label" x="${x(i).toFixed(1)}" y="${H - 8}" text-anchor="middle">${esc(String(series[i].ts).slice(5, 16))}</text>`).join("");
+  const ylabels = [0, 0.5, 1].map((f) =>
+    `<text class="dc-label" x="${padL - 6}" y="${(padT + plotH - f * plotH) + 3}" text-anchor="end">${Math.round(maxReq * f).toLocaleString()}</text>`).join("");
+  el.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Requests and cost over time">
+      ${grid}
+      <line class="dc-axis" x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}"/>
+      <path d="${lineReq}" fill="none" class="dc-line-req" stroke-width="2"/>
+      <path d="${lineCost}" fill="none" class="dc-line-cost" stroke-width="2" stroke-dasharray="4 3"/>
+      ${xlabels}
+      ${ylabels}
+    </svg>
+    <div class="dc-legend">
+      <span><i style="background:var(--nv)"></i>Requests</span>
+      <span><i style="background:#7c5cff"></i>Cost (USD)</span>
+    </div>`;
+}
+
+/* ── US-06 New pack modal ───────────────────── */
+function openPackModal() {
+  $("#packOverlay").hidden = false;
+  $("#packModal").hidden = false;
+  $("#pkSegment").value = "general";
+  $("#pkGpu").value = "H100";
+  $("#pkRegion").value = "HAN-1";
+  $("#pkRate").value = "2.50";
+  $("#pkRateToken").value = "0.0000005";
+  $("#pkCommit").value = "on-demand";
+  $("#pkDiscount").value = "0";
+  $("#pkQuotaRpm").value = "";
+  $("#pkQuotaTpm").value = "";
+  $("#pkError").hidden = true;
+}
+function closePackModal() {
+  $("#packOverlay").hidden = true;
+  $("#packModal").hidden = true;
+}
+async function submitPack(e) {
+  e.preventDefault();
+  const body = {
+    segment: $("#pkSegment").value,
+    gpu: $("#pkGpu").value,
+    region: $("#pkRegion").value,
+    rate_per_hour: parseFloat($("#pkRate").value),
+    rate_per_token: $("#pkRateToken").value ? parseFloat($("#pkRateToken").value) : 0,
+    commitment: $("#pkCommit").value,
+    discount_pct: parseFloat($("#pkDiscount").value) || 0,
+    quota_rpm: $("#pkQuotaRpm").value ? parseInt($("#pkQuotaRpm").value, 10) : null,
+    quota_tpm: $("#pkQuotaTpm").value ? parseInt($("#pkQuotaTpm").value, 10) : null,
+  };
+  try {
+    const res = await fetch("/v1/price-packs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      $("#pkError").textContent = (json && json.error) || ("HTTP " + res.status);
+      $("#pkError").hidden = false;
+      return;
+    }
+    closePackModal();
+    toast("Đã tạo gói giá " + body.segment + " / " + body.gpu + " / " + body.region);
+    renderBilling();
+  } catch (err) {
+    $("#pkError").textContent = err.message;
+    $("#pkError").hidden = false;
+  }
+}
+
+/* ── US-07 Export CSV ───────────────────────── */
+async function exportDashboardCsv() {
+  const seg = $("#dashSegment") ? $("#dashSegment").value : "";
+  const range = $("#dashRange") ? $("#dashRange").value : "24h";
+  const url = "/v1/dashboard?range=" + encodeURIComponent(range) + (seg ? "&segment=" + encodeURIComponent(seg) : "") + "&format=csv";
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const text = await res.text();
+    const blob = new Blob([text], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "dashboard-" + (seg || "all") + "-" + range + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  } catch (e) {
+    toast("Lỗi xuất CSV: " + e.message);
+  }
+}
+
 /* ── Developer tools view — parity+ vs Together AI ── */
 let devtoolsTab = "cli";
 let pgStreamTimer = null;
@@ -2541,7 +2767,7 @@ function updatePgCurl() {
   const prompt = $("#pgPrompt").value;
   const epId = $("#pgEndpoint") ? $("#pgEndpoint").value : "";
   const url = epId ? `/v1/endpoints/${epId}/chat/completions` : "/v1/chat/completions";
-  const body = JSON.stringify({
+  const bodyObj = {
     model,
     messages: [
       { role: "system", content: system },
@@ -2550,7 +2776,15 @@ function updatePgCurl() {
     temperature: parseFloat(temp),
     max_tokens: parseInt(maxTok, 10),
     stream,
-  }, null, 2);
+  };
+  if ($("#pgStructured").checked) {
+    try {
+      const raw = $("#pgSchema").value.trim();
+      const schema = raw ? JSON.parse(raw) : { type: "object" };
+      bodyObj.response_format = { type: "json_schema", json_schema: { name: "pg_output", schema } };
+    } catch (_) { /* schema lỗi — bỏ qua trong curl preview */ }
+  }
+  const body = JSON.stringify(bodyObj, null, 2);
   const curl = `curl ${location.origin}${url} \\
   -H "Authorization: Bearer $FPT_DDI_KEY" \\
   -H "Content-Type: application/json" \\
@@ -2586,12 +2820,29 @@ async function runPlayground() {
   if (system) messages.push({ role: "system", content: system });
   messages.push({ role: "user", content: prompt });
 
+  // US-03 — structured output (JSON Schema)
+  let response_format = null;
+  if ($("#pgStructured").checked) {
+    const raw = $("#pgSchema").value.trim();
+    try {
+      const schema = raw ? JSON.parse(raw) : { type: "object" };
+      response_format = { type: "json_schema", json_schema: { name: "pg_output", schema } };
+    } catch (e) {
+      $("#pgOutput").textContent = "JSON Schema không hợp lệ: " + e.message;
+      $("#pgMeta").textContent = "schema lỗi";
+      pgCtx.running = false;
+      $("#pgRunBtn").disabled = false;
+      return;
+    }
+  }
+  const pgBody = (extra) => Object.assign({ model, messages, temperature: temp, max_tokens: maxTokens }, extra, response_format ? { response_format } : {});
+
   try {
     if (stream) {
       const res = await fetch(target, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model, messages, temperature: temp, max_tokens: maxTokens, stream: true }),
+        body: JSON.stringify(pgBody({ stream: true })),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -2630,7 +2881,7 @@ async function runPlayground() {
       const res = await fetch(target, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model, messages, temperature: temp, max_tokens: maxTokens, stream: false }),
+        body: JSON.stringify(pgBody({ stream: false })),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -3327,7 +3578,7 @@ async function fetchGuardrailEvents(id) {
 }
 
 /* ── Routing ───────────────────────────────── */
-const VIEWS = ["overview", "nvidia", "partners", "catalog", "nim", "serverless", "dedicated", "fine-tuning", "batch", "experiments", "sla-ptu", "pricing", "infra", "devtools", "audit"];
+const VIEWS = ["overview", "dashboard", "nvidia", "partners", "catalog", "nim", "serverless", "dedicated", "fine-tuning", "batch", "experiments", "sla-ptu", "pricing", "billing", "infra", "devtools", "audit"];
 
 function route() {
   const hash = (location.hash || "#/overview").replace("#/", "");
@@ -3356,6 +3607,8 @@ async function init() {
     renderExperiments();
     renderSlaPtu();
     renderPricing();
+    renderBilling();
+    renderDashboard();
     renderInfra();
     renderDevTools();
   });
@@ -3366,6 +3619,22 @@ async function init() {
   renderWorkflow("k8s");
   route();
   window.addEventListener("hashchange", route);
+
+  // US-06 — price packs: filter + refresh + new pack
+  $("#bpkSegment").addEventListener("change", () => renderBilling().catch((e) => console.warn("[billing]", e.message)));
+  $("#bpkRefresh").addEventListener("click", () => renderBilling().catch((e) => console.warn("[billing]", e.message)));
+  $("#bpkNewBtn").addEventListener("click", openPackModal);
+
+  // US-07 — dashboard: segment + range + refresh + csv
+  $("#dashSegment").addEventListener("change", () => renderDashboard().catch((e) => console.warn("[dashboard]", e.message)));
+  $("#dashRange").addEventListener("change", () => renderDashboard().catch((e) => console.warn("[dashboard]", e.message)));
+  $("#dashRefresh").addEventListener("click", () => renderDashboard().catch((e) => console.warn("[dashboard]", e.message)));
+  $("#dashCsv").addEventListener("click", exportDashboardCsv);
+
+  // US-06 — pack modal: close + submit
+  $("#packClose").addEventListener("click", closePackModal);
+  $("#packOverlay").addEventListener("click", closePackModal);
+  $("#packForm").addEventListener("submit", submitPack);
 
   // clock — 30s (đỡ tải) — dùng locale time, không cần tick từng giây
   const tick = () => { $("#clock").textContent = new Date().toLocaleTimeString("en-GB"); };
@@ -3474,6 +3743,8 @@ async function init() {
   $("#modalOverlay").addEventListener("click", closeCreateModal);
   $("#fModeCards").addEventListener("change", (e) => setMode(e.target.value));
   $("#fGpu").addEventListener("change", updatePricePreview);
+  $("#fSegment").addEventListener("change", updatePricePreview);
+  $("#fRegion").addEventListener("change", updatePricePreview);
 
   // poll dedicated mỗi 8s khi đang xem view (để cập nhật lifecycle worker)
   if (dedPollTimer) clearInterval(dedPollTimer);
@@ -3673,6 +3944,11 @@ async function init() {
   );
   $("#pgEndpoint").addEventListener("change", () => { syncPlaygroundModel(); updatePgCurl(); });
   $("#pgStream").addEventListener("change", updatePgCurl);
+  $("#pgStructured").addEventListener("change", () => {
+    $("#pgSchemaField").hidden = !$("#pgStructured").checked;
+    updatePgCurl();
+  });
+  $("#pgSchema").addEventListener("input", updatePgCurl);
   $("#pgRunBtn").addEventListener("click", runPlayground);
   $("#pgClearBtn").addEventListener("click", () => {
     $("#pgOutput").textContent = "";

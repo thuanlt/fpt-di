@@ -1223,3 +1223,36 @@ body.rail-collapsed .rail { display: none; }
   .ptu-calc .calc-row { grid-template-columns: 1fr; }
   .calc-out { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ── US-07 Dashboard chart ─────────────────── */
+.dash-chart {
+  width: 100%;
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dash-chart svg { width: 100%; height: 240px; display: block; }
+.dash-chart .dc-empty { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); }
+.dash-chart .dc-legend { display: flex; gap: 16px; margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--ink-dim); }
+.dash-chart .dc-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.dash-chart .dc-legend i { width: 10px; height: 3px; border-radius: 2px; display: inline-block; }
+.dash-chart .dc-line-req { stroke: var(--nv); }
+.dash-chart .dc-line-cost { stroke: #7c5cff; }
+.dash-chart .dc-grid { stroke: var(--line); stroke-width: 1; }
+.dash-chart .dc-axis { stroke: var(--line-strong); stroke-width: 1; }
+.dash-chart .dc-label { font-family: var(--mono); font-size: 9px; fill: var(--ink-faint); }
+
+/* ── US-06 Price pack hint (create modal) ──── */
+.price-pack-hint {
+  margin: 2px 0 10px;
+  padding: 8px 11px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  background: var(--nv-glow);
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+}
+.price-pack-hint b { color: var(--nv); font-weight: 600; }
+.price-pack-hint .pph-none { color: var(--ink-faint); }
