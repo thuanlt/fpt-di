@@ -10,6 +10,16 @@ const STEPS = [
   { from: "deploying", to: "running", after: 2500, msg: "pods scheduled + weights warming → ready" },
 ];
 
+// US-09 — TensorRT-LLM: build engine tối ưu + warm KV cache (deploying dài hơn, mô phỏng compile)
+const STEPS_TENSORRT = [
+  { from: "queued", to: "deploying", after: 800, msg: "validate config → build TensorRT engine" },
+  { from: "deploying", to: "running", after: 4000, msg: "engine compiled + KV cache warmed → ready" },
+];
+
+function stepsForEngine(engine) {
+  return engine === "tensorrt-llm" ? STEPS_TENSORRT : STEPS;
+}
+
 // P0 — SLO-driven autoscaling (Gap #3): đọc metric thật rồi scale min→max dần
 const AUTOSCALE_COOLDOWN_MS = 8000;
 const SCALE_STEP = 1;
@@ -55,17 +65,16 @@ async function autoscale(ep) {
 async function reconcile() {
   const all = await store.list();
   for (const ep of all) {
-    const next = STEPS.find((s) => s.from === ep.status);
-    if (next) {
-      const elapsed = Date.now() - Date.parse(ep.updatedAt);
-      if (elapsed >= next.after) {
-        try {
-          await store.transition(ep.id, next.to, next.msg);
-          console.log(`[endpoint-worker] ${ep.name} ${next.from} → ${next.to}`);
-        } catch (e) {
-          console.error(`[endpoint-worker] ${ep.name} transition lỗi:`, e.message);
-        }
-      }
+    // US-09 — engine tensorrt-llm có bước build engine + cache riêng
+    const steps = stepsForEngine(ep.engine);
+    const next = steps.find((s) => s.from === ep.status);
+    if (!next) continue;
+    const elapsed = Date.now() - new Date(ep.updatedAt).getTime();
+    if (elapsed < next.after) continue;
+    try {
+      await store.transition(ep.id, next.to, next.msg);
+    } catch (e) {
+      console.error(`[endpoint-worker] transition lỗi:`, e.message);
       continue;
     }
     // P0 — autoscaling cho endpoint running

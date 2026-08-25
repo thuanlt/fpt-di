@@ -13,6 +13,8 @@ const dataRouter = require('./src/data/routes');
 const inferenceRouter = require('./src/inference/routes').router;
 const auditRouter = require('./src/audit/routes');
 const catalogRouter = require('./src/catalog/routes');
+const pricingRouter = require('./src/pricing/routes');
+const dashboardRouter = require('./src/dashboard/routes');
 const db = require('./src/db/pool');
 const worker = require('./src/batch/worker');
 const byomWorker = require('./src/byom/worker');
@@ -70,6 +72,10 @@ function pathScope(p) {
   if (p === '/models' || p === '/batch' || p.startsWith('/batch/')) return 'batch';
   if (p === '/audit') return 'admin'; // US-05 — audit chỉ admin
   if (p === '/byom' || p.startsWith('/byom/')) return 'byom';
+  // US-06 — price packs (scope admin)
+  if (p === '/price-packs' || p.startsWith('/price-packs/')) return 'admin';
+  // US-07 — dashboard KPI (scope endpoints)
+  if (p === '/dashboard' || p.startsWith('/dashboard/')) return 'endpoints';
   if (p.startsWith('/endpoints') || p === '/skills' || p.startsWith('/skills/')) return 'endpoints';
   // /chat/completions — playground chat, gate scope 'playground' (UI có key với scope)
   if (p === '/chat/completions') return 'playground';
@@ -90,6 +96,8 @@ function roleRequirement(method, p) {
   if (/^\/endpoints\/[^/]+\/guardrails(\/events)?$/.test(p)) return ['admin'];
   // Audit log → admin
   if (p === '/audit') return ['admin'];
+  // US-06 — price packs → admin
+  if (p === '/price-packs' || p.startsWith('/price-packs/')) return ['admin'];
   // Endpoint mutations (create/update/delete/scale/start/stop/config/redeploy/swap/status)
   if (p === '/endpoints' || p.startsWith('/endpoints/')) {
     if (p.endsWith('/chat/completions')) return null; // invoke — mọi role dùng được
@@ -162,7 +170,7 @@ app.get('/v1/metrics/cold-start', async (req, res) => {
 });
 
 // Mount router operational — tất cả dùng prefix /v1
-app.use('/v1', keysRouter, batchRouter, byomRouter, skillsRouter, endpointsRouter, endpointInvokeRouter, inferenceRouter, auditRouter, catalogRouter);
+app.use('/v1', keysRouter, batchRouter, byomRouter, skillsRouter, endpointsRouter, endpointInvokeRouter, inferenceRouter, auditRouter, catalogRouter, pricingRouter, dashboardRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Không tìm thấy endpoint' });

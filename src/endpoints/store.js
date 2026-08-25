@@ -17,7 +17,9 @@ const REGIONS = ["HAN-1", "HAN-2", "SGN-1"];
 const MODES = ["k8s", "container"];
 const COMMITS = ["on-demand", "7-30", "91-180"];
 // US-01 — segment + engine (NIM deploy)
-const SEGMENTS = ["general", "coding", "banking", "insurance", "retail", "manufacturing", "telecom"];
+// US-01 — segment + engine (NIM deploy)
+// US-03 — thêm "securities" (chứng khoán — structured output, SLA p95 ≤500ms)
+const SEGMENTS = ["general", "coding", "banking", "securities", "insurance", "retail", "manufacturing", "telecom"];
 const ENGINES = ["vllm", "nim", "tensorrt-llm"];
 const DATA_RESIDENCIES = ["VN", "SG", "US"];
 // US-02 — guardrails template (NeMo) — rules mặc định theo template
@@ -75,10 +77,41 @@ const COMMIT_LABEL = { "on-demand": "On-demand", "7-30": "7–30d", "91-180": "9
 const COMMIT_HOURS = { "on-demand": 0, "7-30": 30 * 24, "91-180": 180 * 24 };
 const CARRYOVER_CAP = 0.20;
 
+// US-09 — mô hình benchmark throughput A/B (engine mặc định vllm vs engine tối ưu)
+// Baseline tokens/sec theo GPU (1 replica, engine mặc định vllm); engine khác nhân hệ số.
+// TensorRT-LLM: build engine tối ưu + cache → throughput +35% (đạt NFR-PERF-002 ≥20%).
+const BASELINE_TPS = { A30: 4000, H100: 10000, H200: 12000, B300: 15000 };
+const ENGINE_TPS_MULT = { vllm: 1.0, nim: 1.1, triton: 1.15, "tensorrt-llm": 1.35 };
+function engineBenchmark(gpu, engine, replicas = 1) {
+  const base = (BASELINE_TPS[gpu] || 10000) * Math.max(1, parseInt(replicas, 10) || 1);
+  const mult = ENGINE_TPS_MULT[engine] || 1.0;
+  const baselineTps = Math.round(base * ENGINE_TPS_MULT.vllm);
+  const tps = Math.round(base * mult);
+  const improvementPct = baselineTps > 0 ? Math.round(((tps - baselineTps) / baselineTps) * 1000) / 10 : 0;
+  return { baseline_tps: baselineTps, tps, improvement_pct: improvementPct };
+}
+
 const LIFECYCLE = ["queued", "deploying", "running", "degraded", "paused", "stopped", "failed"];
 
 function rate(gpu, commit) {
   return GPU_BASE_RATE[gpu] * COMMIT_MULT[commit];
+}
+
+// US-06 — resolve price pack theo (segment, gpu, region).
+// Lazy-require pricing store để tránh circular dependency (pricing store require endpoints store
+// ở top-level để lấy enums). Trả về pack hoặc null; lỗi DB (file mode không có DB) → null.
+let _pricingStore = null;
+function pricingStore() {
+  if (!_pricingStore) _pricingStore = require("../pricing/store");
+  return _pricingStore;
+}
+async function resolvePricePack(segment, gpu, region) {
+  try {
+    return await pricingStore().getBySegmentGpuRegion(segment, gpu, region);
+  } catch (e) {
+    console.warn("[endpoints] resolve price pack lỗi (dùng rate mặc định):", e.message);
+    return null;
+  }
 }
 
 // Tính giờ quota còn lại cho endpoint đang stop (dựa trên commit term + startedAt)
@@ -114,7 +147,7 @@ const fileBackend = {
   },
   getById(id) { return fileReadAll().find((e) => e.id === id) || null; },
   getByName(name) { return fileReadAll().find((e) => e.name === name) || null; },
-create({ name, model, gpu, region, mode, commit, minReplicas, maxReplicas, image, port, allowGpuSwap, scalingMetric, scalingTarget, maxModelLen, gpuCount, quantization, hostKvCache, samplingDefaults, segment, engine, codePrivacy, guardrailsEnabled, guardrailsTemplate, dataResidency }) {
+  async create({ name, model, gpu, region, mode, commit, minReplicas, maxReplicas, image, port, allowGpuSwap, scalingMetric, scalingTarget, maxModelLen, gpuCount, quantization, hostKvCache, samplingDefaults, segment, engine, codePrivacy, guardrailsEnabled, guardrailsTemplate, dataResidency }) {
     if (!name || typeof name !== "string") throw new Error("name bắt buộc");
     const norm = name.trim().toLowerCase().replace(/\s+/g, "-");
     if (!/^[a-z0-9][a-z0-9-]*$/.test(norm)) throw new Error("name chỉ chứa chữ thường, số, gạch nối");
@@ -153,12 +186,15 @@ create({ name, model, gpu, region, mode, commit, minReplicas, maxReplicas, image
           max_tokens: samplingDefaults.max_tokens != null ? parseInt(samplingDefaults.max_tokens, 10) : SAMPLING_DEFAULTS.max_tokens,
         }
       : { ...SAMPLING_DEFAULTS };
+    // US-06 — resolve price pack theo (segment, gpu, region); có gói → rate = rate_per_hour của gói
+    const pack = await resolvePricePack(seg, gpu, region);
+    const rateStr = pack ? Number(pack.ratePerHour).toFixed(2) : rate(gpu, commit).toFixed(2);
     const id = "ep-" + crypto.randomBytes(4).toString("hex");
     const now = new Date().toISOString();
     const ep = {
       id, name: norm, model, gpu, region, mode, commit,
       replicas: `${min}/${maxd}`, desiredReplicas: min, maxReplicas: maxd,
-      rate: rate(gpu, commit).toFixed(2), commitLabel: COMMIT_LABEL[commit],
+      rate: rateStr, commitLabel: COMMIT_LABEL[commit],
       image: image || (mode === "container" ? `registry.fpt.vn/ddi/${norm}:v1` : null),
       port: port || (mode === "container" ? 8000 : null),
       // P0 — SLO-driven autoscaling (Gap #3)
@@ -174,6 +210,9 @@ create({ name, model, gpu, region, mode, commit, minReplicas, maxReplicas, image
       allowGpuSwap: !!allowGpuSwap,
       // US-01 — segment/engine/NIM + data residency
       segment: seg, engine: eng, dataResidency: dr,
+      // US-06 — price pack đã resolve
+      pricePackId: pack ? pack.id : null,
+      pricePack: pack || null,
       // US-08 — code privacy
       codePrivacy: !!codePrivacy,
       // US-02 — guardrails
@@ -422,6 +461,8 @@ const pgBackend = (() => {
       segment: r.segment || "general",
       engine: r.engine || "vllm",
       dataResidency: r.data_residency || "VN",
+      // US-06 — price pack
+      pricePackId: r.price_pack_id || null,
       // US-08 — code privacy
       codePrivacy: !!r.code_privacy,
       // US-02 — guardrails
@@ -509,14 +550,16 @@ const pgBackend = (() => {
         : { ...SAMPLING_DEFAULTS };
       const id = "ep-" + crypto.randomBytes(4).toString("hex");
       const now = new Date().toISOString();
-      const rateStr = rate(gpu, commit).toFixed(2);
+      // US-06 — resolve price pack theo (segment, gpu, region); có gói → rate = rate_per_hour của gói
+      const pack = await resolvePricePack(seg, gpu, region);
+      const rateStr = pack ? Number(pack.ratePerHour).toFixed(2) : rate(gpu, commit).toFixed(2);
       const img = image || (mode === "container" ? `registry.fpt.vn/ddi/${norm}:v1` : null);
       const pt = port || (mode === "container" ? 8000 : null);
       try {
         await db().query(
-          `INSERT INTO endpoint_entities (id,name,model,gpu,region,mode,commit,replicas,desired_replicas,max_replicas,rate,commit_label,image,port,carryover_quota_hours,allow_gpu_swap,scaling_metric,scaling_target,max_model_len,gpu_count,quantization,host_kv_cache,sampling_defaults,status,created_at,updated_at,segment,engine,code_privacy,guardrails_enabled,guardrails_template,data_residency,guardrails_rules)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,0,$16,$17,$18,$19,$20,$21,$22,$23,'queued',$15,$15,$24,$25,$26,$27,$28,$29,$30)`,
-          [id, norm, model, gpu, region, mode, commit, `${min}/${maxd}`, min, maxd, rateStr, COMMIT_LABEL[commit], img, pt, now, !!allowGpuSwap, sm, st, ml, gc, qz, hkv, JSON.stringify(sd), seg, eng, !!codePrivacy, !!guardrailsEnabled, gt, dr, gt ? JSON.stringify(resolveRules(gt)) : null]
+`INSERT INTO endpoint_entities (id,name,model,gpu,region,mode,commit,replicas,desired_replicas,max_replicas,rate,commit_label,image,port,carryover_quota_hours,allow_gpu_swap,scaling_metric,scaling_target,max_model_len,gpu_count,quantization,host_kv_cache,sampling_defaults,status,created_at,updated_at,segment,engine,code_privacy,guardrails_enabled,guardrails_template,data_residency,guardrails_rules,price_pack_id)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,0,$16,$17,$18,$19,$20,$21,$22,$23,'queued',$15,$15,$24,$25,$26,$27,$28,$29,$30,$31)`,
+          [id, norm, model, gpu, region, mode, commit, `${min}/${maxd}`, min, maxd, rateStr, COMMIT_LABEL[commit], img, pt, now, !!allowGpuSwap, sm, st, ml, gc, qz, hkv, JSON.stringify(sd), seg, eng, !!codePrivacy, !!guardrailsEnabled, gt, dr, gt ? JSON.stringify(resolveRules(gt)) : null, pack ? pack.id : null]
         );
         await db().query(
           `INSERT INTO endpoint_events (endpoint_id, at, from_state, to_state, msg) VALUES ($1,$2,NULL,'queued','queued for deploy')`,
@@ -535,6 +578,9 @@ const pgBackend = (() => {
         hostKvCache: hkv, samplingDefaults: sd,
         carryoverQuotaHours: 0, allowGpuSwap: !!allowGpuSwap,
         segment: seg, engine: eng, dataResidency: dr,
+        // US-06 — price pack đã resolve
+        pricePackId: pack ? pack.id : null,
+        pricePack: pack || null,
         codePrivacy: !!codePrivacy,
         guardrailsEnabled: !!guardrailsEnabled, guardrailsTemplate: gt,
         guardrailsRules: gt ? resolveRules(gt) : null,
@@ -808,6 +854,8 @@ module.exports = {
   COMMIT_HOURS, CARRYOVER_CAP,
   SEGMENTS, ENGINES, DATA_RESIDENCIES,
   GUARDRAIL_TEMPLATES,
+  // US-09 — benchmark throughput A/B
+  BASELINE_TPS, ENGINE_TPS_MULT, engineBenchmark,
   backend: BACKEND,
   list: (...a) => pick("list")(...a),
   getById: (...a) => pick("getById")(...a),

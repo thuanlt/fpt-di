@@ -7,6 +7,54 @@ const db = require("../db/pool");
 const audit = require("../audit/store");
 const { countTokens } = require("../inference/routes");
 
+let _pricingStore = null;
+function pricingStore() {
+  if (!_pricingStore) _pricingStore = require("../pricing/store");
+  return _pricingStore;
+}
+
+// US-06 — quota RPM/TPM theo price pack: counter in-memory theo phút (O(1), không DB query/request)
+const quotaCounters = new Map(); // endpointId -> { minute, requests, tokens }
+function quotaMinuteKey() {
+  const d = new Date();
+  return d.getUTCFullYear() * 100000000
+    + (d.getUTCMonth() + 1) * 1000000
+    + d.getUTCDate() * 10000
+    + d.getUTCHours() * 100
+    + d.getUTCMinutes();
+}
+function getQuotaState(endpointId) {
+  const minute = quotaMinuteKey();
+  let s = quotaCounters.get(endpointId);
+  if (!s || s.minute !== minute) {
+    s = { minute, requests: 0, tokens: 0 };
+    quotaCounters.set(endpointId, s);
+  }
+  return s;
+}
+function addQuotaTokens(endpointId, n) {
+  const s = quotaCounters.get(endpointId);
+  if (s && n > 0) s.tokens += n;
+}
+
+// US-03 — validate response_format (json_object / json_schema)
+// Trả về lỗi (string) nếu sai, null nếu hợp lệ.
+function validateResponseFormat(rf) {
+  if (rf == null) return null;
+  if (typeof rf !== "object" || Array.isArray(rf)) return "response_format phải là object";
+  if (rf.type === "json_object") return null;
+  if (rf.type === "json_schema") {
+    const js = rf.json_schema;
+    if (!js || typeof js !== "object" || Array.isArray(js)) return "response_format.json_schema phải là object";
+    if (typeof js.name !== "string" || !js.name) return "response_format.json_schema.name phải là string không rỗng";
+    const schema = js.schema;
+    if (!schema || typeof schema !== "object" || Array.isArray(schema)) return "response_format.json_schema.schema phải là object";
+    if (typeof schema.type !== "string" || !schema.type) return "response_format.json_schema.schema.type bắt buộc (object/array/string/...)";
+    return null;
+  }
+  return `response_format.type phải là "json_object" hoặc "json_schema" (nhận: ${JSON.stringify(rf.type)})`;
+}
+
 const router = express.Router();
 
 // US-02 — ghi guardrail_event (append-only)
@@ -91,12 +139,13 @@ async function vllmHealthy() {
 }
 
 // Gọi inference server (không stream) — trả content + usage
-async function callVllm({ model, messages, temperature, maxTokens, maxModelLen, topP }) {
+async function callVllm({ model, messages, temperature, maxTokens, maxModelLen, topP, responseFormat }) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), VLLM_TIMEOUT_MS);
   try {
     const body = { model, messages, temperature, top_p: topP, max_tokens: maxTokens, stream: false };
     if (maxModelLen != null) body.max_model_len = maxModelLen;
+    if (responseFormat) body.response_format = responseFormat;
     const r = await fetch(`${VLLM_BASE}/v1/chat/completions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -126,8 +175,14 @@ router.post("/endpoints/:id/chat/completions", async (req, res) => {
       await recordUsage({ endpointId: ep.id, model: ep.model, promptTokens: 0, completionTokens: 0, costUsd: 0, latencyMs: Date.now() - t0, statusCode: 409 }).catch(() => {});
       return res.status(409).json({ error: { message: `Endpoint "${ep.name}" hiện ${ep.status} — chỉ invoke được khi running`, type: "invalid_request_error" } });
     }
-    const { model, messages, temperature, max_tokens, stream, max_model_len, top_p } = req.body || {};
+    const { model, messages, temperature, max_tokens, stream, max_model_len, top_p, response_format } = req.body || {};
     const useModel = model || ep.model;
+    // US-03 — validate response_format (json_object / json_schema) trước khi forward
+    const rfErr = validateResponseFormat(response_format);
+    if (rfErr) {
+      await recordUsage({ endpointId: ep.id, model: useModel, promptTokens: 0, completionTokens: 0, costUsd: 0, latencyMs: Date.now() - t0, statusCode: 400 }).catch(() => {});
+      return res.status(400).json({ error: { message: rfErr, type: "invalid_request_error" } });
+    }
     // P0 — context length: ưu tiên per-request, fallback config endpoint, fallback null (vLLM tự suy)
     const useMaxModelLen = max_model_len != null ? max_model_len : (ep.maxModelLen != null ? ep.maxModelLen : null);
     // P2 — sampling defaults: request không truyền thì dùng default endpoint, request truyền thì override
@@ -163,6 +218,32 @@ router.post("/endpoints/:id/chat/completions", async (req, res) => {
       });
     }
 
+    // US-06 — quota RPM/TPM theo price pack (counter in-memory, O(1))
+    if (ep.pricePackId) {
+      let pack = null;
+      try { pack = await pricingStore().getById(ep.pricePackId); } catch (_) { pack = null; }
+      if (pack && (pack.quotaRpm != null || pack.quotaTpm != null)) {
+        const q = getQuotaState(ep.id);
+        const estTokens = messages.reduce((s, m) => s + countTokens(m.content || ""), 0);
+        const overRpm = pack.quotaRpm != null && q.requests + 1 > pack.quotaRpm;
+        const overTpm = pack.quotaTpm != null && q.tokens + estTokens > pack.quotaTpm;
+        if (overRpm || overTpm) {
+          const which = overRpm && overTpm ? "RPM+TPM" : overRpm ? `RPM ${pack.quotaRpm}` : `TPM ${pack.quotaTpm}`;
+          await recordUsage({ endpointId: ep.id, model: useModel, promptTokens: 0, completionTokens: 0, costUsd: 0, latencyMs: Date.now() - t0, statusCode: 429 }).catch(() => {});
+          await audit.record({
+            actor: (req.apiKey && req.apiKey.name) || "unknown",
+            role: (req.apiKey && req.apiKey.role) || "viewer",
+            action: "endpoint.invoke.quota",
+            entityId: ep.id, entityType: "endpoint", result: "blocked", ip: req.ip || null,
+            meta: { model: useModel, pricePackId: ep.pricePackId, limit: which },
+          });
+          return res.status(429).json({ error: { message: `Vượt quota gói giá (${which}) — thử lại sau`, type: "rate_limit_error" } });
+        }
+        q.requests += 1;
+        q.tokens += estTokens;
+      }
+    }
+
     // Inference server chưa cấu hình → báo rõ 503
     if (!VLLM_BASE) {
       await recordUsage({ endpointId: ep.id, model: useModel, promptTokens: 0, completionTokens: 0, costUsd: 0, latencyMs: Date.now() - t0, statusCode: 503 }).catch(() => {});
@@ -181,7 +262,7 @@ router.post("/endpoints/:id/chat/completions", async (req, res) => {
       const upstream = await fetch(`${VLLM_BASE}/v1/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: useModel, messages, temperature: useTemp, top_p: useTopP, max_tokens: useMaxTokens, max_model_len: useMaxModelLen, stream: true }),
+        body: JSON.stringify({ model: useModel, messages, temperature: useTemp, top_p: useTopP, max_tokens: useMaxTokens, max_model_len: useMaxModelLen, stream: true, ...(response_format ? { response_format } : {}) }),
         signal: ctrl.signal,
       }).catch((e) => {
         clearTimeout(t);
@@ -239,13 +320,15 @@ router.post("/endpoints/:id/chat/completions", async (req, res) => {
           const latencyMs = Date.now() - tStart;
           const costUsd = (promptTokens / 1e6) * price.in + (completionTokens / 1e6) * price.out;
           await recordUsage({ endpointId: ep.id, model: useModel, promptTokens, completionTokens, costUsd, latencyMs, statusCode: 200 });
+          // US-06 — cộng completion tokens vào quota TPM
+          addQuotaTokens(ep.id, completionTokens);
         }
       })();
       return;
     }
 
     // ---- Không stream: proxy + ghi usage ----
-    const data = await callVllm({ model: useModel, messages, temperature: useTemp, maxTokens: useMaxTokens, maxModelLen: useMaxModelLen, topP: useTopP });
+    const data = await callVllm({ model: useModel, messages, temperature: useTemp, maxTokens: useMaxTokens, maxModelLen: useMaxModelLen, topP: useTopP, responseFormat: response_format || null });
     const content = data.choices?.[0]?.message?.content || "";
     const promptTokens = data.usage?.prompt_tokens ?? messages.reduce((s, m) => s + countTokens(m.content || ""), 0);
     const completionTokens = data.usage?.completion_tokens ?? countTokens(content);
@@ -254,6 +337,8 @@ router.post("/endpoints/:id/chat/completions", async (req, res) => {
     const latencyMs = Date.now() - t0;
 
     await recordUsage({ endpointId: ep.id, model: useModel, promptTokens, completionTokens, costUsd, latencyMs, statusCode: 200 });
+    // US-06 — cộng completion tokens vào quota TPM
+    addQuotaTokens(ep.id, completionTokens);
     // US-08 — ghi audit invoke; prompt redact nếu code_privacy
     await audit.record({
       actor: (req.apiKey && req.apiKey.name) || "unknown",
@@ -403,6 +488,9 @@ router.get("/endpoints/:id/metrics", async (req, res) => {
       data: {
         endpoint: { id: ep.id, name: ep.name, status: ep.status },
         range,
+        // US-09 — engine + benchmark throughput A/B (baseline vllm vs engine hiện tại)
+        engine: ep.engine || "vllm",
+        throughput: store.engineBenchmark(ep.gpu, ep.engine || "vllm", ep.desiredReplicas || 1),
         totals: {
           requests,
           success: requests - parseInt(a.errors, 10),

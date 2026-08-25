@@ -29,6 +29,48 @@ function countTokens(text) {
   return Math.ceil(String(text).length / 4);
 }
 
+// US-03 — mô phỏng guided decoding: sinh JSON conform json_schema.
+// Dùng example/default/const/enum nếu có, không thì sample theo type.
+function sampleFromSchema(schema) {
+  if (!schema || typeof schema !== "object") return null;
+  if (schema.const !== undefined) return schema.const;
+  if (schema.example !== undefined) return schema.example;
+  if (schema.default !== undefined) return schema.default;
+  if (Array.isArray(schema.enum) && schema.enum.length) return schema.enum[0];
+  const type = schema.type;
+  if (type === "object" || schema.properties) {
+    const obj = {};
+    for (const [key, prop] of Object.entries(schema.properties || {})) {
+      obj[key] = sampleFromSchema(prop);
+    }
+    return obj;
+  }
+  if (type === "array") return [sampleFromSchema(schema.items || {})];
+  if (type === "string") return "sample";
+  if (type === "number") return 1.5;
+  if (type === "integer") return 42;
+  if (type === "boolean") return true;
+  if (type === "null") return null;
+  return null;
+}
+
+// US-03 — validate response_format ở adapter (defense in depth). Trả lỗi hoặc null.
+function validateResponseFormat(rf) {
+  if (rf == null) return null;
+  if (typeof rf !== "object" || Array.isArray(rf)) return "response_format phải là object";
+  if (rf.type === "json_object") return null;
+  if (rf.type === "json_schema") {
+    const js = rf.json_schema;
+    if (!js || typeof js !== "object" || Array.isArray(js)) return "response_format.json_schema phải là object";
+    if (typeof js.name !== "string" || !js.name) return "response_format.json_schema.name phải là string";
+    const schema = js.schema;
+    if (!schema || typeof schema !== "object" || Array.isArray(schema)) return "response_format.json_schema.schema phải là object";
+    if (typeof schema.type !== "string" || !schema.type) return "response_format.json_schema.schema.type bắt buộc";
+    return null;
+  }
+  return `response_format.type không hợp lệ: ${JSON.stringify(rf.type)}`;
+}
+
 // "Generation" mô phỏng hành vi model thật:
 // - output PHỤ THUỘC prompt (không phải hash cố định — thêm nhiễu theo timestamp để mô phỏng sinh token thật)
 // - khác prompt → khác output hoàn toàn
@@ -93,7 +135,12 @@ app.get("/v1/metrics/cold-start", (req, res) => {
 
 app.post("/v1/chat/completions", (req, res) => {
   const startMs = Date.now();
-  const { model, messages, temperature, max_tokens, stream } = req.body || {};
+  const { model, messages, temperature, max_tokens, stream, response_format } = req.body || {};
+  // US-03 — validate response_format (json_object / json_schema)
+  const rfErr = validateResponseFormat(response_format);
+  if (rfErr) {
+    return res.status(400).json({ error: { message: rfErr, type: "invalid_request_error" } });
+  }
   // Chấp nhận model catalog cố định (MODELS) hoặc byom-<id> động (BYOM preview pool)
   const isByom = typeof model === "string" && model.startsWith("byom-");
   if (!model || (!MODELS[model] && !isByom)) {
@@ -103,7 +150,17 @@ app.post("/v1/chat/completions", (req, res) => {
     return res.status(400).json({ error: { message: "messages phải là array không rỗng", type: "invalid_request_error" } });
   }
 
-  const content = generate({ model, messages, temperature });
+  // US-03 — có response_format → sinh JSON conform schema (mô phỏng guided decoding)
+  let content;
+  if (response_format && response_format.type === "json_schema") {
+    const sample = sampleFromSchema(response_format.json_schema.schema);
+    content = JSON.stringify(sample, null, 2);
+  } else if (response_format && response_format.type === "json_object") {
+    const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    content = JSON.stringify({ model, result: "ok", echo: String(lastUser?.content || "").slice(0, 80) }, null, 2);
+  } else {
+    content = generate({ model, messages, temperature });
+  }
   const promptTokens = messages.reduce((s, m) => s + countTokens(m.content || ""), 0);
   const completionTokens = countTokens(content);
   recordColdStart(Date.now() - startMs);
