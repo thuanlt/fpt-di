@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FPT DDI · Partner Console</title>
+<meta name="description" content="Partner console for NVIDIA alliance, model partners, serverless endpoints, and AI infrastructure.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=3">
+</head>
+<body>
+<div class="app">
+
+  <!-- ═══ Top bar ═══ -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="rail-toggle" id="railToggle" aria-label="Toggle navigation" aria-expanded="true">
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M2 3h12v1.6H2zM2 7.2h12v1.6H2zM2 11.4h12V13H2z"/></svg>
+      </button>
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor"><path d="M3 7.5 10 3l7 4.5v5L10 17l-7-4.5zM10 4.6 4.4 8.2 10 11.8l5.6-3.6z"/></svg>
+        </span>
+        <span class="brand-text">FPT DDI <em>Partner Console</em></span>
+      </div>
+      <span class="env-badge" title="Production environment">PROD</span>
+    </div>
+    <div class="topbar-right">
+      <input type="password" id="apiKeyInput" class="api-key-input mono" placeholder="ddi-live-..." aria-label="API key" />
+      <button class="btn btn-ghost btn-sm" id="apiKeySetBtn">Set key</button>
+      <span class="key-status" id="keyStatusBadge" hidden></span>
+      <span class="sync-status" id="syncStatus">
+        <span class="pulse-dot" aria-hidden="true"></span>
+        Synced <span id="syncAgo">2m</span> ago
+      </span>
+      <button class="btn btn-ghost btn-sm" id="syncBtn">
+        <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M8 2a6 6 0 1 0 5.7 4.1l-1.5.5A4.4 4.4 0 1 1 8 3.6V6l3.2-2.7L8 .5z"/></svg>
+        Sync now
+      </button>
+      <span class="clock mono" id="clock" aria-label="Local time">00:00:00</span>
+    </div>
+  </header>
+
+  <!-- ═══ Fleet ribbon (signature) ═══ -->
+  <div class="fleet-ribbon" role="region" aria-label="GPU fleet status at a glance">
+    <span class="fleet-label mono">FLEET</span>
+    <div class="fleet-blocks" id="fleetBlocks"></div>
+    <span class="fleet-meta mono" id="fleetMeta">— nodes · —% util</span>
+  </div>
+
+  <!-- ═══ Rail nav ═══ -->
+  <nav class="rail" id="rail" aria-label="Primary">
+    <a href="#/overview" class="rail-item" data-view="overview">
+      <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M2 2h6v6H2zm8 0h6v6h-6zM2 10h6v6H2zm8 0h6v6h-6z"/></svg>
+      <span>Overview</span>
+    </a>
+    <a href="#/nvidia" class="rail-item" data-view="nvidia">
+      <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M9 1 2 5v8l7 4 7-4V5zm0 2.2 4.6 2.6L9 8.5 4.4 5.8zM4 7.5l4 2.3v4.6L4 12zM10 14.4V9.8l4-2.3V12z"/></svg>
+      <span>NVIDIA</span>
+    </a>
+    <a href="#/partners" class="rail-item" data-view="partners">
+      <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M6.5 8.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm6 .5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM6.5 10c-2.5 0-4.5 1.6-4.5 3.7V16h9v-2.3c0-2.1-2-3.7-4.5-3.7zm6 .5c-.7 0-1.4.1-2 .4 1.2.8 2 2 2 3.4V16h4.5v-2.1c0-1.9-2-3.4-4.5-3.4z"/></svg>
+      <span>Model partners</span>
+    </a>
+    <a href="#/catalog" class="rail-item" data-view="catalog">
+      <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M2 3h6v6H2zm8 0h6v6h-6zM2 11h6v6H2zm8 0h6v6h-6z"/></svg>
+      <span>Model catalog</span>
+    </a>
+    <a href="#/nim" class="rail-item" data-view="nim">
+      <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M9 1 2 5v8l7 4 7-4V5zm0 2.2 4.6 2.6L9 8.5 4.4 5.8zM4 7.5l4 2.3v4.6L4 12zM10 14.4V9.8l4-2.3V12z"/></svg>
+      <span>NIM catalog</span>
+    </a>
+    <a href="#/serverless" class="rail-item" data-view="serverless">
+      <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M10 1 3 10h4l-1 7 8-10H9z"/></svg>
+      <span>Serverless</span>
+    </a>
+    <a href="#/dedicated" class="rail-item" data-view="dedicated">
+      <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M9 1 16 5v8l-7 4-7-4V5zm0 2.1L4.2 5.8 9 8.5l4.8-2.7zM3.6 7.4l4.5 2.5v4.9l-4.5-2.6zm10.8 0v4.8l-4.5 2.6V9.9z"/></svg>
+      <span>Dedicated inference</span>
+    </a>
+    <a href="#/fine-tuning" class="rail-item" data-view="fine-tuning">
+      <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M2 14h2v-2H2zm4 0h2V6H6zm4 0h2V4h-2zm4 0h2V8h-2z"/></svg>
+      <span>Fine-tuning</span>
+    </a>
+    <a href="#/batch" class="rail-item" data-view="batch">
+      <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M2 2h14v3H2zm0 5h14v3H2zm0 5h14v3H2z"/></svg>
+      <span>Batch API</span>
+    </a>
+    <a href="#/experiments" class="rail-item" data-view="experiments">
+      <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M9 1a8 8 0 1 0 0 16A8 8 0 0 0 9 1zm.8 3v4.2h3.4l-4.6 6.4v-4.2H5.2z"/></svg>
+      <span>Experiments</span>
+    </a>
+    <a href="#/sla-ptu" class="rail-item" data-view="sla-ptu">
+      <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M9 1 7.6 2.4 3 4v5c0 4 2.5 7 6 8 3.5-1 6-4 6-8V4l-4.6-1.6zM9 3l3 1v5c0 2.8-1.8 5-3 5.6V3z"/></svg>
+      <span>SLA &amp; PTU</span>
+    </a>
+    <a href="#/pricing" class="rail-item" data-view="pricing">
+      <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M9 1 1 5v8l8 4 8-4V5zm0 2.2L14.5 6 9 8.8 3.5 6zM2.5 7.2 8 9.6v5.2L2.5 12zm13 0V12L10 14.8V9.6z"/></svg>
+      <span>Pricing</span>
+    </a>
+    <a href="#/devtools" class="rail-item" data-view="devtools">
+      <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M5.5 4 1 9l4.5 5 1.2-1L3.4 9l3.3-4zm7 0L12.3 5l3.3 4-3.3 4 1.2 1L17 9zM10.4 3l-3 12h1.6l3-12z"/></svg>
+      <span>Developer tools</span>
+    </a>
+    <a href="#/audit" class="rail-item" data-view="audit">
+      <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M3 2h12v2H3zm0 4h12v2H3zm0 4h8v2H3zm0 4h8v2H3zm11-3 1.4 1.4L18 8l1.4 1.4-3.6 3.6L13 11z"/></svg>
+      <span>Audit log</span>
+    </a>
+    <a href="#/infra" class="rail-item" data-view="infra">
+      <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M2 3h14v4H2zm2 1.5v1h2v-1zm3 0v1h5v-1zM2 11h14v4H2zm2 1.5v1h2v-1zm3 0v1h5v-1zm-2-4.7h8v1.4H5z"/></svg>
+      <span>AI infrastructure</span>
+    </a>
+    <div class="rail-foot mono" aria-hidden="true">v1.4.2</div>
+  </nav>
+
+  <!-- ═══ Main ═══ -->
+  <main class="main" id="main" tabindex="-1">
+
+    <!-- ── Overview ── -->
+    <section class="view" id="view-overview" hidden>
+      <div class="view-head">
+        <h1>Overview</h1>
+        <p class="view-sub">Everything the DDI partner and infrastructure teams track, on one screen.</p>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi">
+          <span class="kpi-label mono">MODEL PARTNERS</span>
+          <span class="kpi-value mono" id="kpiPartners">—</span>
+          <span class="kpi-delta up">+1 this quarter</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label mono">SERVERLESS ENDPOINTS</span>
+          <span class="kpi-value mono" id="kpiEndpoints">—</span>
+          <span class="kpi-delta up">+3 this week</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label mono">FLEET UTILIZATION</span>
+          <span class="kpi-value mono" id="kpiUtil">—</span>
+          <span class="kpi-delta">Target ≥ 60%</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label mono">NVIDIA PROGRAMS</span>
+          <span class="kpi-value mono">3<span class="kpi-sub">active</span></span>
+          <span class="kpi-delta">NCP certified 2025</span>
+        </div>
+      </div>
+
+      <div class="panel attention" id="attentionPanel">
+        <h2 class="panel-title">Needs attention</h2>
+        <ul class="attention-list" id="attentionList"></ul>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <h2 class="panel-title">Recent activity</h2>
+          <ul class="activity-list" id="activityList"></ul>
+        </div>
+        <div class="panel">
+          <h2 class="panel-title">Upcoming milestones</h2>
+          <ol class="timeline" id="milestoneList"></ol>
+        </div>
+      </div>
+
+      <div class="panel social-proof">
+        <h2 class="panel-title">Trusted in production</h2>
+        <div class="logo-strip" id="customerStrip"></div>
+      </div>
+    </section>
+
+    <!-- ── NVIDIA ── -->
+    <section class="view" id="view-nvidia" hidden>
+      <div class="view-head">
+        <h1>NVIDIA alliance</h1>
+        <p class="view-sub">Program status, allocations, and joint milestones with our primary silicon partner.</p>
+      </div>
+
+      <div class="card-grid" id="nvPrograms"></div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <h2 class="panel-title">Key contacts</h2>
+          <ul class="contact-list" id="nvContacts"></ul>
+        </div>
+        <div class="panel">
+          <h2 class="panel-title">Joint roadmap</h2>
+          <ol class="timeline" id="nvTimeline"></ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Model partners ── -->
+    <section class="view" id="view-partners" hidden>
+      <div class="view-head">
+        <h1>Model partners</h1>
+        <p class="view-sub">Organizations whose models ship in the DDI catalog, and the health of each integration.</p>
+      </div>
+
+      <div class="toolbar">
+        <div class="search">
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M6.8 1a5.8 5.8 0 1 0 3.5 10.4l3.6 3.6 1.1-1.1-3.6-3.6A5.8 5.8 0 0 0 6.8 1zm0 1.6a4.2 4.2 0 1 1 0 8.4 4.2 4.2 0 0 1 0-8.4z"/></svg>
+          <input type="search" id="partnerSearch" placeholder="Search partner or model…" aria-label="Search partners">
+        </div>
+        <div class="chips" id="partnerChips" role="group" aria-label="Filter by status">
+          <button class="chip is-on" data-filter="all">All</button>
+          <button class="chip" data-filter="active">Active</button>
+          <button class="chip" data-filter="trialing">Trialing</button>
+          <button class="chip" data-filter="on hold">On hold</button>
+        </div>
+        <button class="btn btn-primary" id="addPartnerBtn">Request onboarding</button>
+      </div>
+
+      <div class="panel table-panel">
+        <table class="table" id="partnerTable">
+          <thead>
+            <tr>
+              <th>Partner</th><th>Models</th><th>Top model</th><th>Catalog share</th><th>Integration</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="partnerRows"></tbody>
+        </table>
+        <p class="empty" id="partnerEmpty" hidden>No partners match that search.</p>
+      </div>
+    </section>
+
+    <!-- ── Serverless ── -->
+    <section class="view" id="view-serverless" hidden>
+      <div class="view-head">
+        <h1>Serverless endpoints</h1>
+        <p class="view-sub">Shared-capacity inference endpoints. Live figures update every few seconds.</p>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi">
+          <span class="kpi-label mono">REQUESTS / MIN</span>
+          <span class="kpi-value mono" id="kpiReqMin">—</span>
+          <span class="kpi-delta">rolling window</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label mono">ERROR RATE</span>
+          <span class="kpi-value mono" id="kpiErrRate">—</span>
+          <span class="kpi-delta">SLO &lt; 0.5%</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label mono">P95 LATENCY</span>
+          <span class="kpi-value mono" id="kpiP95">—</span>
+          <span class="kpi-delta">target &lt; 300 ms</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label mono">RUNNING</span>
+          <span class="kpi-value mono" id="kpiRunning">—</span>
+          <span class="kpi-delta" id="kpiPaused">— paused</span>
+        </div>
+      </div>
+
+      <div class="panel table-panel">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Endpoint</th><th>Model</th><th>GPU</th><th>Region</th><th>Tokens/min</th><th>P95</th><th>Replicas</th><th>$/hr</th><th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="endpointRows"></tbody>
+        </table>
+      </div>
+
+      <div class="panel">
+        <h2 class="panel-title">Prometheus metrics endpoint</h2>
+        <div class="prom-box">
+          <code class="mono" id="promEpUrl">—</code>
+          <div class="prom-targets" id="promTargets"></div>
+          <p class="prom-note">Scrape-compatible with Grafana / Datadog. Edge, router, and worker metrics exposed.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Dedicated inference ── -->
+    <section class="view" id="view-dedicated" hidden>
+      <div class="view-head">
+        <h1>Dedicated inference</h1>
+        <p class="view-sub">Reserved GPU endpoints with guaranteed throughput — deploy as a Kubernetes workload or a single container.</p>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi">
+          <span class="kpi-label mono">DEDICATED ENDPOINTS</span>
+          <span class="kpi-value mono" id="kpiDedCount">—</span>
+          <span class="kpi-delta" id="kpiDedModes">—</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label mono">RESERVED GPUS</span>
+          <span class="kpi-value mono" id="kpiDedGpus">—</span>
+          <span class="kpi-delta">always-on, no cold start</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label mono">BURN RATE</span>
+          <span class="kpi-value mono" id="kpiDedRate">—</span>
+          <span class="kpi-delta">blended $/hr across commits</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label mono">UPTIME SLA</span>
+          <span class="kpi-value mono">99.9%</span>
+          <span class="kpi-delta">reserved throughput</span>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <div class="chips" id="dedChips" role="group" aria-label="Filter by deploy mode">
+          <button class="chip is-on" data-dedfilter="all">All</button>
+          <button class="chip" data-dedfilter="k8s">Kubernetes</button>
+          <button class="chip" data-dedfilter="container">Container</button>
+        </div>
+        <button class="btn btn-primary" id="createEndpointBtn">+ Create endpoint</button>
+      </div>
+
+      <div class="panel">
+        <div class="workflow-head">
+          <h2 class="panel-title" id="wfTitle">Deploy workflow — Kubernetes</h2>
+          <span class="wf-live mono" id="wfLive"></span>
+        </div>
+        <ol class="workflow" id="workflowList"></ol>
+      </div>
+
+      <div class="panel">
+        <h2 class="panel-title">SLO-driven autoscaling — 8 metrics</h2>
+        <div class="slo-grid" id="sloMetrics"></div>
+        <p class="prom-note">Autoscaler scales replica count on inflight load, GPU/token utilization, cache hit, throughput, TTFT and end-to-end latency.</p>
+      </div>
+
+      <!-- T4.2 — p95 cold-start thật (O4 asset) — aggregate từ /v1/metrics/cold-start -->
+      <div class="panel" id="coldStartPanel">
+        <div class="workflow-head">
+          <h2 class="panel-title">p95 cold-start — playground preview pool (đo thật · O4)</h2>
+          <span class="wf-live mono" id="coldStartLive">idle</span>
+        </div>
+        <div class="slo-grid" id="coldStartMetrics"></div>
+        <p class="prom-note">Source: <code class="mono">GET /v1/metrics/cold-start</code> · ring buffer 200 mẫu gần nhất trên playground preview pool · cập nhật mỗi 30s · công bố khách như <b>SLA public</b> (parity vs Together AI + OpenAI).</p>
+      </div>
+
+      <div class="panel table-panel">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Endpoint</th><th>Model</th><th>GPU</th><th>Mode</th><th>Region</th><th>Replicas</th><th>$/hr</th><th>Commit</th><th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="dedicatedRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── Model catalog ── -->
+    <section class="view" id="view-catalog" hidden>
+      <div class="view-head">
+        <h1>Model catalog</h1>
+        <p class="view-sub">Frontier models, long context, and multi-modal — expanding from ~20 toward 200+.</p>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi"><span class="kpi-label mono">MODELS</span><span class="kpi-value mono" id="kpiCatTotal">—</span><span class="kpi-delta up">+6 frontier this quarter</span></div>
+        <div class="kpi"><span class="kpi-label mono">NEW / FRONTIER</span><span class="kpi-value mono" id="kpiCatFrontier">—</span><span class="kpi-delta">Llama 4, DeepSeek V4, Qwen 3.8-Max</span></div>
+        <div class="kpi"><span class="kpi-label mono">MULTI-MODAL</span><span class="kpi-value mono" id="kpiCatModal">—</span><span class="kpi-delta">image · audio · video</span></div>
+        <div class="kpi"><span class="kpi-label mono">MAX CONTEXT</span><span class="kpi-value mono" id="kpiCatCtx">—</span><span class="kpi-delta">up to 1M tokens</span></div>
+      </div>
+
+      <div class="toolbar">
+        <div class="chips" id="catChips" role="group" aria-label="Filter by modality">
+          <button class="chip is-on" data-catfilter="all">All</button>
+          <button class="chip" data-catfilter="text">Text</button>
+          <button class="chip" data-catfilter="text+vision">Vision</button>
+          <button class="chip" data-catfilter="multimodal">Multi-modal</button>
+        </div>
+        <button class="btn btn-primary" id="byomBtn">Bring your own model</button>
+      </div>
+
+      <div class="card-grid" id="catalogGrid"></div>
+      <p class="empty" id="catalogEmpty" hidden>No models match that filter.</p>
+
+      <!-- ── Bring your own model — upload jobs ── -->
+      <div class="view-head" style="margin-top:32px">
+        <h2 style="font-size:14px;letter-spacing:.02em">Your uploaded models</h2>
+        <p class="view-sub">BYOM jobs tải weights từ HF/S3 về FPT DDI — async, poll tới <code>ready</code> rồi deploy lên dedicated endpoint.</p>
+      </div>
+      <div class="kpi-row" id="byomKpiRow">
+        <div class="kpi"><span class="kpi-label mono">UPLOADS</span><span class="kpi-value mono" id="kpiByomTotal">—</span><span class="kpi-delta">tổng jobs</span></div>
+        <div class="kpi"><span class="kpi-label mono">READY</span><span class="kpi-value mono" id="kpiByomReady">—</span><span class="kpi-delta up">deploy được</span></div>
+        <div class="kpi"><span class="kpi-label mono">IN PROGRESS</span><span class="kpi-value mono" id="kpiByomRunning">—</span><span class="kpi-delta">downloading/validating</span></div>
+        <div class="kpi"><span class="kpi-label mono">FAILED</span><span class="kpi-value mono" id="kpiByomFailed">—</span><span class="kpi-delta err">cần xem lại</span></div>
+      </div>
+      <table class="data-table" style="margin-top:16px">
+        <thead>
+          <tr>
+            <th>Job ID</th>
+            <th>Model name</th>
+            <th>Source</th>
+            <th>Files</th>
+            <th>Size</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="byomRows">
+          <tr><td colspan="7" style="text-align:center;color:var(--ink-faint);padding:30px">Chưa có upload job. Click "Bring your own model" để upload đầu tiên.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ── NVIDIA NIM catalog (US-01 / WF-01) ── -->
+    <section class="view" id="view-nim" hidden>
+      <div class="view-head">
+        <h1>NVIDIA NIM catalog</h1>
+        <p class="view-sub">NVIDIA NIM microservices bundled with dedicated deployments — 1-click deploy per segment, engine, and GPU. Nguồn: <code class="mono">GET /v1/catalog</code>.</p>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi"><span class="kpi-label mono">NIM MODELS</span><span class="kpi-value mono" id="kpiNimTotal">—</span><span class="kpi-delta">available</span></div>
+        <div class="kpi"><span class="kpi-label mono">SEGMENTS</span><span class="kpi-value mono" id="kpiNimSegments">—</span><span class="kpi-delta">coding · banking · …</span></div>
+        <div class="kpi"><span class="kpi-label mono">MAX CONTEXT</span><span class="kpi-value mono" id="kpiNimCtx">—</span><span class="kpi-delta">long-context ready</span></div>
+        <div class="kpi"><span class="kpi-label mono">SOURCE</span><span class="kpi-value mono" id="kpiNimSource">—</span><span class="kpi-delta">NIM · HF · FPT</span></div>
+      </div>
+
+      <div class="toolbar">
+        <label class="field" style="margin:0">
+          <span>Segment</span>
+          <select id="nimSegment">
+            <option value="">All</option>
+            <option value="coding">coding</option>
+            <option value="banking">banking</option>
+            <option value="securities">securities</option>
+            <option value="insurance">insurance</option>
+            <option value="general">general</option>
+          </select>
+        </label>
+        <label class="field" style="margin:0">
+          <span>Source</span>
+          <select id="nimSource">
+            <option value="">All</option>
+            <option value="nim">NVIDIA NIM</option>
+            <option value="nvidia_nim">NVIDIA NIM (alias)</option>
+            <option value="huggingface">Hugging Face</option>
+            <option value="fpt">FPT</option>
+          </select>
+        </label>
+        <label class="field" style="margin:0">
+          <span>GPU</span>
+          <select id="nimGpu">
+            <option value="">All</option>
+            <option value="H100">H100</option>
+            <option value="H200">H200</option>
+            <option value="A30">A30</option>
+            <option value="B300">B300</option>
+          </select>
+        </label>
+        <span class="devtools-hint mono" id="nimFilterHint" style="align-self:flex-end;margin-left:auto">GET /v1/catalog · Deploy cần scope endpoints</span>
+      </div>
+
+      <div class="panel table-panel">
+        <table class="table">
+          <thead>
+            <tr><th>Model</th><th>Segments</th><th>Source</th><th>NIM</th><th>GPUs</th><th>Context</th><th>Status</th><th></th></tr>
+          </thead>
+          <tbody id="nimRows"></tbody>
+        </table>
+        <p class="empty" id="nimEmpty" hidden>No NIM models match that filter.</p>
+      </div>
+    </section>
+
+    <!-- ── Fine-tuning ── -->
+    <section class="view" id="view-fine-tuning" hidden>
+      <div class="view-head">
+        <h1>Fine-tuning</h1>
+        <p class="view-sub">LoRA, full, and DPO fine-tuning — then one-click deploy to a dedicated endpoint.</p>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi"><span class="kpi-label mono">FT JOBS</span><span class="kpi-value mono" id="kpiFtJobs">—</span><span class="kpi-delta">multi-node training</span></div>
+        <div class="kpi"><span class="kpi-label mono">RUNNING</span><span class="kpi-value mono" id="kpiFtRunning">—</span><span class="kpi-delta">in progress</span></div>
+        <div class="kpi"><span class="kpi-label mono">METHODS</span><span class="kpi-value mono" id="kpiFtMethods">—</span><span class="kpi-delta">LoRA · Full · DPO</span></div>
+        <div class="kpi"><span class="kpi-label mono">SPEND (EST.)</span><span class="kpi-value mono" id="kpiFtSpent">—</span><span class="kpi-delta">$0.48–8 / 1M tok</span></div>
+      </div>
+
+      <div class="toolbar">
+        <button class="btn btn-primary" id="newFtBtn">+ New fine-tune job</button>
+      </div>
+
+      <div class="panel table-panel">
+        <table class="table">
+          <thead>
+            <tr><th>Job</th><th>Base model</th><th>Method</th><th>Progress</th><th>Cost</th><th>Deployed to</th><th>Status</th></tr>
+          </thead>
+          <tbody id="ftRows"></tbody>
+        </table>
+      </div>
+
+      <div class="panel table-panel">
+        <h2 class="panel-title" style="padding:0 16px 0">Pricing — $/1M tokens by parameter size</h2>
+        <table class="table">
+          <thead>
+            <tr><th>Method</th><th>≤16B</th><th>17–69B</th><th>70–100B</th><th>Note</th></tr>
+          </thead>
+          <tbody id="ftPricingRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── Batch API ── -->
+    <section class="view" id="view-batch" hidden>
+      <div class="view-head">
+        <h1>Batch API</h1>
+        <p class="view-sub">Asynchronous batch inference — up to 50K requests per job, 24h completion window, up to −50% vs serverless.</p>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi"><span class="kpi-label mono">BATCH JOBS</span><span class="kpi-value mono" id="kpiBatJobs">—</span><span class="kpi-delta">async queue</span></div>
+        <div class="kpi"><span class="kpi-label mono">RUNNING</span><span class="kpi-value mono" id="kpiBatRunning">—</span><span class="kpi-delta">in progress</span></div>
+        <div class="kpi"><span class="kpi-label mono">REQUESTS</span><span class="kpi-value mono" id="kpiBatReq">—</span><span class="kpi-delta">across all jobs</span></div>
+        <div class="kpi"><span class="kpi-label mono">DISCOUNT</span><span class="kpi-value mono" id="kpiBatDisc">—</span><span class="kpi-delta up">vs serverless</span></div>
+      </div>
+
+      <div class="toolbar">
+        <button class="btn btn-primary" id="batchUploadBtn">Upload JSONL batch</button>
+      </div>
+
+      <div class="panel table-panel">
+        <table class="table">
+          <thead>
+            <tr><th>Job</th><th>Model</th><th>Requests</th><th>Submitted</th><th>Window</th><th>Discount</th><th>Status</th></tr>
+          </thead>
+          <tbody id="batchRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══ Batch upload modal ═══ -->
+    <div class="drawer-overlay" id="batchModalOverlay" hidden></div>
+    <div class="modal" id="batchModal" role="dialog" aria-modal="true" aria-labelledby="batchModalTitle" hidden>
+      <div class="drawer-head">
+        <h2 id="batchModalTitle">Upload JSONL batch</h2>
+        <button class="btn btn-ghost btn-sm" id="batchModalClose" aria-label="Close dialog">✕</button>
+      </div>
+      <form class="modal-body" id="batchForm" novalidate>
+        <label class="field">
+          <span>Model</span>
+          <select id="batchModel"></select>
+        </label>
+        <label class="field">
+          <span>Max tokens</span>
+          <input type="number" id="batchMaxTok" value="512" min="1" max="32000">
+        </label>
+        <label class="field">
+          <span>JSONL file</span>
+          <input type="file" id="batchFile" accept=".jsonl,.json,.txt">
+          <small class="mono" id="batchFileLbl" style="color:var(--ink-faint)">Chưa chọn file · giới hạn 100MB / 50K requests</small>
+        </label>
+        <div class="batch-preview mono" id="batchPreview" style="font-size:11.5px;color:var(--ink-dim)"></div>
+        <p class="devtools-hint mono">Mỗi dòng JSON: {"messages":[{"role":"user","content":"..."}]} hoặc {"prompt":"..."} · −50% so serverless · hoàn thành trong 24h</p>
+        <div class="modal-foot">
+          <button type="button" class="btn btn-ghost" id="batchModalCloseFoot">Hủy</button>
+          <button type="submit" class="btn btn-primary" id="batchSubmitBtn">Submit batch</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ═══ Bring your own model modal ═══ -->
+    <div class="drawer-overlay" id="byomModalOverlay" hidden></div>
+    <div class="modal" id="byomModal" role="dialog" aria-modal="true" aria-labelledby="byomModalTitle" hidden>
+      <div class="drawer-head">
+        <h2 id="byomModalTitle">Bring your own model</h2>
+        <button class="btn btn-ghost btn-sm" id="byomModalClose" aria-label="Close dialog">✕</button>
+      </div>
+      <form class="modal-body" id="byomForm" novalidate>
+        <p class="devtools-hint mono">Upload weights từ Hugging Face Hub hoặc S3 presigned URL — validate ở HF format (config.json + tokenizer + weights). Async worker tải files thật về, poll tới <code>ready</code> rồi deploy lên dedicated endpoint.</p>
+        <label class="field">
+          <span>Source type</span>
+          <select id="byomType">
+            <option value="huggingface">Hugging Face Hub (org/repo)</option>
+            <option value="s3">S3 presigned URL (.zip / .tar.gz)</option>
+          </select>
+        </label>
+        <label class="field">
+          <span id="byomSourceLabel">HF repo path</span>
+          <input type="text" id="byomSource" placeholder="meta-llama/Llama-3.3-70B-Instruct" autocomplete="off">
+        </label>
+        <label class="field" id="byomHfTokenField">
+          <span>HF token (cho private/gated repo — tùy chọn)</span>
+          <input type="password" id="byomHfToken" placeholder="hf_..." autocomplete="off">
+        </label>
+        <label class="field">
+          <span>Model name (chữ thường+số+gạch nối, 2-63 ký tự)</span>
+          <input type="text" id="byomModelName" placeholder="my-finetune-v1" autocomplete="off">
+        </label>
+        <label class="field">
+          <span>Description (tùy chọn)</span>
+          <input type="text" id="byomDescription" placeholder="LoRA adapter fine-tuned on Vietnamese corpus">
+        </label>
+        <div class="modal-foot">
+          <button type="button" class="btn btn-ghost" id="byomModalCloseFoot">Hủy</button>
+          <button type="submit" class="btn btn-primary" id="byomSubmitBtn">Upload</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ═══ Playground chat modal (O1 — BYOM upload → playground → deploy) ═══ -->
+    <div class="drawer-overlay" id="playgroundOverlay" hidden></div>
+    <div class="modal" id="playgroundModal" role="dialog" aria-modal="true" aria-labelledby="playgroundTitle" hidden style="max-width:920px">
+      <div class="drawer-head">
+        <h2 id="playgroundTitle">Playground — <span id="pgModelName" class="mono"></span></h2>
+        <button class="btn btn-ghost btn-sm" id="playgroundClose" aria-label="Close dialog">✕</button>
+      </div>
+      <div class="modal-body" style="display:grid;grid-template-columns:300px 1fr;gap:16px;max-height:75vh">
+        <!-- left: config -->
+        <div style="display:flex;flex-direction:column;gap:10px;border-right:1px solid var(--line);padding-right:14px">
+          <label class="field">
+            <span>System prompt</span>
+            <textarea id="pgSystem" rows="5" placeholder="Bạn là trợ lý hữu ích..."></textarea>
+          </label>
+          <label class="field">
+            <span>Temperature</span>
+            <input type="range" id="pgTemp" min="0" max="2" step="0.1" value="0.7">
+            <small class="mono" id="pgTempVal" style="color:var(--ink-dim)">0.7</small>
+          </label>
+          <label class="field">
+            <span>Max tokens</span>
+            <input type="number" id="pgMaxTok" value="256" min="1" max="32000">
+          </label>
+          <label class="field" style="margin-top:6px">
+            <span>Code snippet</span>
+            <div style="display:flex;gap:6px">
+              <button type="button" class="btn btn-ghost btn-sm pg-snippet-tab" data-lang="curl" aria-pressed="true">curl</button>
+              <button type="button" class="btn btn-ghost btn-sm pg-snippet-tab" data-lang="python">Python</button>
+              <button type="button" class="btn btn-ghost btn-sm pg-snippet-tab" data-lang="javascript">JS</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="pgCopySnippet" title="Copy snippet">⧉</button>
+            </div>
+            <pre class="mono" id="pgSnippet" style="font-size:10.5px;background:var(--bg-elev);padding:8px;border:1px solid var(--line);max-height:140px;overflow:auto;white-space:pre-wrap"></pre>
+          </label>
+          <div style="margin-top:auto">
+            <button type="button" class="btn btn-ghost" id="pgClearChat" style="width:100%">Clear chat</button>
+          </div>
+        </div>
+        <!-- right: chat -->
+        <div style="display:flex;flex-direction:column;min-height:0">
+          <div id="pgMessages" class="mono" style="flex:1;overflow:auto;padding:8px;border:1px solid var(--line);background:var(--bg-elev);font-size:12px;line-height:1.5"></div>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <input type="text" id="pgInput" placeholder="Hỏi model..." autocomplete="off" style="flex:1">
+            <button type="button" class="btn btn-primary" id="pgSend">Send</button>
+            <button type="button" class="btn btn-primary" id="pgDeploy" title="Deploy model này thành dedicated endpoint">Deploy →</button>
+          </div>
+          <small id="pgHint" class="mono" style="color:var(--ink-faint);margin-top:4px"></small>
+        </div>
+      </div>
+      <input type="hidden" id="pgJobId">
+      <input type="hidden" id="pgModel">
+    </div>
+
+    <!-- ═══ PlayGround → Deploy modal (O1 T2.6 — gọi /v1/byom/:id/deploy) ═══ -->
+    <div class="drawer-overlay" id="pgDeployOverlay" hidden></div>
+    <div class="modal" id="pgDeployModal" role="dialog" aria-modal="true" aria-labelledby="pgDeployTitle" hidden>
+      <div class="drawer-head">
+        <h2 id="pgDeployTitle">Deploy model → Dedicated endpoint</h2>
+        <button class="btn btn-ghost btn-sm" id="pgDeployClose" aria-label="Close dialog">✕</button>
+      </div>
+      <form class="modal-body" id="pgDeployForm" novalidate>
+        <p class="devtools-hint mono">Tạo dedicated endpoint cho <b id="pgDeployModelName" class="mono"></b> — gọi <code>POST /v1/byom/:id/deploy</code>. Endpoint sẽ <code>queued → deploying → running</code>.</p>
+        <label class="field">
+          <span>Endpoint name (chữ thường+số+gạch nối, 2-63 ký tự)</span>
+          <input type="text" id="pgDeployName" placeholder="byom-my-finetune-v1" required>
+        </label>
+        <div class="field-row">
+          <label class="field">
+            <span>GPU</span>
+            <select id="pgDeployGpu">
+              <option value="A30">A30 — $0.90/hr</option>
+              <option value="H100" selected>H100 — $2.50/hr</option>
+              <option value="H200">H200 — $3.30/hr</option>
+              <option value="B300">B300 — $5.50/hr</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Region</span>
+            <select id="pgDeployRegion">
+              <option>HAN-1</option><option>HAN-2</option><option>SGN-1</option>
+            </select>
+          </label>
+        </div>
+        <div class="field-row">
+          <label class="field">
+            <span>Commit term</span>
+            <select id="pgDeployCommit">
+              <option value="on-demand">On-demand</option>
+              <option value="7-30">7–30 days (−9%)</option>
+              <option value="91-180">91–180 days (−27%)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Max replicas</span>
+            <input type="number" id="pgDeployMaxRep" value="1" min="1" max="8">
+          </label>
+        </div>
+        <fieldset class="field" style="margin-top:4px">
+          <span>USP (O3) — tùy chọn</span>
+          <div class="checkbox-grid">
+            <label class="checkbox-pill"><input type="checkbox" id="pgDeployAllowSwap" value="allow_gpu_swap"><span>Cho phép đổi GPU giữa kỳ (GPU swap)</span></label>
+            <p class="devtools-hint mono" style="grid-column:1/-1;font-size:11px;margin:4px 0">Carryover 20% quota tự động áp dụng khi stop (không cần tick) — giờ cam kết còn lại được chuyển kỳ tiếp.</p>
+          </div>
+        </fieldset>
+        <div class="modal-foot">
+          <span class="price-preview mono" id="pgDeployPricePreview">$2.50/hr</span>
+          <button type="submit" class="btn btn-primary" id="pgDeploySubmit">Deploy endpoint</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ── Experiments ── -->
+    <section class="view" id="view-experiments" hidden>
+      <div class="view-head">
+        <h1>Experiments</h1>
+        <p class="view-sub">A/B test live traffic (1 control + up to 19 variants) and shadow experiments that mirror without serving.</p>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi"><span class="kpi-label mono">EXPERIMENTS</span><span class="kpi-value mono" id="kpiExpTotal">—</span><span class="kpi-delta">live + shadow</span></div>
+        <div class="kpi"><span class="kpi-label mono">A/B TESTS</span><span class="kpi-value mono" id="kpiExpAb">—</span><span class="kpi-delta">ramp & promote</span></div>
+        <div class="kpi"><span class="kpi-label mono">SHADOW</span><span class="kpi-value mono" id="kpiExpShadow">—</span><span class="kpi-delta">mirror, not served</span></div>
+        <div class="kpi"><span class="kpi-label mono">RUNNING</span><span class="kpi-value mono" id="kpiExpRunning">—</span><span class="kpi-delta">in progress</span></div>
+      </div>
+
+      <div class="toolbar">
+        <button class="btn btn-primary" id="newExpBtn">+ New experiment</button>
+      </div>
+
+      <div class="panel table-panel">
+        <table class="table">
+          <thead>
+            <tr><th>Experiment</th><th>Type</th><th>Control</th><th>Variants</th><th>Traffic split</th><th>Note</th><th>Status</th></tr>
+          </thead>
+          <tbody id="expRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── SLA & PTU ── -->
+    <section class="view" id="view-sla-ptu" hidden>
+      <div class="view-head">
+        <h1>SLA &amp; Provisioned Throughput</h1>
+        <p class="view-sub">Committed uptime with service-credit tiers, and reserved throughput (PTU) billed by tokens-per-minute.</p>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi"><span class="kpi-label mono">UPTIME SLA</span><span class="kpi-value mono" id="kpiSlaUptime">—</span><span class="kpi-delta up">committed</span></div>
+        <div class="kpi"><span class="kpi-label mono">CREDIT TIERS</span><span class="kpi-value mono" id="kpiSlaCredit">—</span><span class="kpi-delta">10 / 25 / 50%</span></div>
+        <div class="kpi"><span class="kpi-label mono">PTU PLANS</span><span class="kpi-value mono" id="kpiPtuPlans">—</span><span class="kpi-delta">reserved TPM</span></div>
+        <div class="kpi"><span class="kpi-label mono">PTU RATE</span><span class="kpi-value mono" id="kpiPtuRate">—</span><span class="kpi-delta">per PTU / min</span></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <h2 class="panel-title">Service-credit tiers</h2>
+          <div class="table-panel" style="padding:0">
+            <table class="table">
+              <thead><tr><th>Uptime</th><th>Credit</th><th>Scope</th></tr></thead>
+              <tbody id="slaCreditRows"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="panel">
+          <h2 class="panel-title">Provisioned throughput (PTU)</h2>
+          <div class="table-panel" style="padding:0">
+            <table class="table">
+              <thead><tr><th>Plan</th><th>Model</th><th>TPM</th><th>Rate</th><th>Commit</th><th>Status</th></tr></thead>
+              <tbody id="ptuRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel ptu-calc">
+        <h2 class="panel-title">PTU calculator — estimate savings vs serverless</h2>
+        <div class="calc-row">
+          <label class="field">
+            <span>Target tokens / min</span>
+            <input type="number" id="ptuTpm" value="120000" min="1000" step="1000">
+          </label>
+          <div class="calc-out">
+            <div><span class="calc-lbl">Required</span><b class="mono" id="ptuOutUnits">—</b></div>
+            <div><span class="calc-lbl">PTU cost</span><b class="mono" id="ptuOutCost">—</b></div>
+            <div><span class="calc-lbl">Serverless equiv.</span><b class="mono" id="ptuOutSrv">—</b></div>
+            <div><span class="calc-lbl">Savings</span><b class="mono savings" id="ptuOutSave">—</b></div>
+          </div>
+          <button class="btn btn-primary" id="ptuContactBtn">Contact sales</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Pricing ── -->
+    <section class="view" id="view-pricing" hidden>
+      <div class="view-head">
+        <h1>Pricing</h1>
+        <p class="view-sub">Transparent GPU-per-hour pricing — on-demand and reserved by commitment term.</p>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi"><span class="kpi-label mono">CHEAPEST TIER</span><span class="kpi-value mono" id="kpiPrCheap">—</span><span class="kpi-delta">A30 entry</span></div>
+        <div class="kpi"><span class="kpi-label mono">MAX RESERV. DISCOUNT</span><span class="kpi-value mono" id="kpiPrDisc">—</span><span class="kpi-delta">at 91–180d</span></div>
+        <div class="kpi"><span class="kpi-label mono">GPU TIERS</span><span class="kpi-value mono" id="kpiPrGpus">—</span><span class="kpi-delta">A30 · H100 · H200 · B300</span></div>
+        <div class="kpi"><span class="kpi-label mono">VS HYPERSCALER</span><span class="kpi-value mono" id="kpiPrVs">—</span><span class="kpi-delta up">neo-cloud pricing</span></div>
+      </div>
+
+      <div class="panel table-panel">
+        <table class="table">
+          <thead>
+            <tr><th>GPU</th><th>On-demand</th><th>7–30d</th><th>31–90d</th><th>91–180d</th><th>Hyperscaler ref.</th><th>Note</th></tr>
+          </thead>
+          <tbody id="priceRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── Developer tools ── -->
+    <section class="view" id="view-devtools" hidden>
+      <div class="view-head">
+        <h1>Developer tools</h1>
+        <p class="view-sub">The fastest path from idea to production — CLI, SDKs in 4 languages, an interactive playground, scoped API keys, agent skills, and a capacity API. Everything Together AI ships, plus data residency and Vietnamese-native tooling.</p>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi"><span class="kpi-label mono">SDK LANGUAGES</span><span class="kpi-value mono" id="kpiSdkLangs">—</span><span class="kpi-delta">Python · TS · Go · Rust</span></div>
+        <div class="kpi"><span class="kpi-label mono">API CALLS / MIN</span><span class="kpi-value mono" id="kpiApiRpm">—</span><span class="kpi-delta up" id="kpiApiRpmDelta">rolling window</span></div>
+        <div class="kpi"><span class="kpi-label mono">AGENT SKILLS</span><span class="kpi-value mono" id="kpiSkillTotal">—</span><span class="kpi-delta">endpoint · batch · ft · cost</span></div>
+        <div class="kpi"><span class="kpi-label mono">HEADROOM REGIONS</span><span class="kpi-value mono" id="kpiHeadRegions">—</span><span class="kpi-delta">capacity per region</span></div>
+      </div>
+
+      <div class="devtools-tabs" id="devtoolsTabs" role="tablist" aria-label="Developer tools sections">
+        <button class="tab is-on" role="tab" data-tab="cli" aria-selected="true">CLI</button>
+        <button class="tab" role="tab" data-tab="sdk" aria-selected="false">SDKs & docs</button>
+        <button class="tab" role="tab" data-tab="playground" aria-selected="false">Playground</button>
+        <button class="tab" role="tab" data-tab="keys" aria-selected="false">API keys</button>
+        <button class="tab" role="tab" data-tab="skills" aria-selected="false">Agent skills</button>
+        <button class="tab" role="tab" data-tab="headroom" aria-selected="false">Headroom API</button>
+      </div>
+
+      <!-- ─── Tab: CLI ─── -->
+      <div class="devtools-panel" id="dt-cli" role="tabpanel">
+        <div class="panel">
+          <h2 class="panel-title">Install</h2>
+          <div class="code-shell">
+            <code class="mono" id="cliInstall">—</code>
+            <button class="btn btn-ghost btn-sm copy-btn" data-copy="cliInstall" aria-label="Copy install command">Copy</button>
+          </div>
+          <p class="devtools-hint mono">Single binary · macOS · Linux · Windows · Homebrew · pipx</p>
+        </div>
+
+        <div class="grid-2">
+          <div class="panel">
+            <h2 class="panel-title">Quick start</h2>
+            <div class="cli-list" id="cliCmds"></div>
+          </div>
+          <div class="panel">
+            <h2 class="panel-title">Endpoint & batch commands</h2>
+            <div class="cli-list" id="cliCmds2"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2 class="panel-title">Try it — interactive shell</h2>
+          <div class="term" id="term">
+            <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">fpt-ddi — interactive</span></div>
+            <pre class="term-body" id="termBody" aria-live="polite"></pre>
+            <form class="term-input-row" id="termForm" autocomplete="off">
+              <span class="term-prompt mono">fpt ddi ❯</span>
+              <input class="term-input mono" id="termInput" placeholder="type a command — e.g. endpoint list" aria-label="Interactive CLI input" autocomplete="off" spellcheck="false">
+            </form>
+          </div>
+          <p class="devtools-hint mono">Tip: <code>help</code> · <code>endpoint list</code> · <code>batch submit demo.jsonl</code> · <code>clear</code></p>
+        </div>
+      </div>
+
+      <!-- ─── Tab: SDK & docs ─── -->
+      <div class="devtools-panel" id="dt-sdk" role="tabpanel" hidden>
+        <div class="panel">
+          <h2 class="panel-title">OpenAI-compatible — point any OpenAI SDK at FPT DDI</h2>
+          <pre class="code-block mono"><code id="sdkOpenAi">—</code></pre>
+          <button class="btn btn-ghost btn-sm copy-btn" data-copy="sdkOpenAi">Copy</button>
+        </div>
+
+        <div class="card-grid">
+          <div class="card sdk-card" data-sdk="python">
+            <span class="card-tag">PYTHON</span>
+            <h3>Official SDK · <code class="mono" id="sdkPyInstall">pip install fpt-ddi</code></h3>
+            <pre class="code-block mono small"><code id="sdkPython">—</code></pre>
+            <button class="btn btn-ghost btn-sm copy-btn" data-copy="sdkPython">Copy</button>
+          </div>
+          <div class="card sdk-card" data-sdk="typescript">
+            <span class="card-tag t-blue">TYPESCRIPT</span>
+            <h3>Official SDK · <code class="mono" id="sdkTsInstall">npm i @fpt-ddi/sdk</code></h3>
+            <pre class="code-block mono small"><code id="sdkTypescript">—</code></pre>
+            <button class="btn btn-ghost btn-sm copy-btn" data-copy="sdkTypescript">Copy</button>
+          </div>
+          <div class="card sdk-card" data-sdk="go">
+            <span class="card-tag t-amber">GO</span>
+            <h3>Official SDK · <code class="mono" id="sdkGoInstall">go get fpt.ai/ddi-go</code></h3>
+            <pre class="code-block mono small"><code id="sdkGo">—</code></pre>
+            <button class="btn btn-ghost btn-sm copy-btn" data-copy="sdkGo">Copy</button>
+          </div>
+          <div class="card sdk-card" data-sdk="rust">
+            <span class="card-tag">RUST</span>
+            <h3>Official SDK · <code class="mono" id="sdkRustInstall">cargo add fpt-ddi</code></h3>
+            <pre class="code-block mono small"><code id="sdkRust">—</code></pre>
+            <button class="btn btn-ghost btn-sm copy-btn" data-copy="sdkRust">Copy</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2 class="panel-title">Docs & references</h2>
+          <div class="doc-grid" id="docList"></div>
+        </div>
+      </div>
+
+      <!-- ─── Tab: Playground ─── -->
+      <div class="devtools-panel" id="dt-playground" role="tabpanel" hidden>
+        <div class="playground">
+          <div class="pg-left">
+            <div class="panel">
+              <h2 class="panel-title">Request</h2>
+              <label class="field">
+                <span>Endpoint (dedicated — đang chạy)</span>
+                <select id="pgEndpoint"><option value="">— Serverless (không qua endpoint) —</option></select>
+              </label>
+              <label class="field">
+                <span>Model</span>
+                <select id="pgModel"></select>
+              </label>
+              <div class="field-row">
+                <label class="field">
+                  <span>Temperature (0–2)</span>
+                  <input type="number" id="pgTemp" value="0.7" min="0" max="2" step="0.1">
+                </label>
+                <label class="field">
+                  <span>Max tokens</span>
+                  <input type="number" id="pgMaxTok" value="512" min="1" max="32000">
+                </label>
+              </div>
+              <label class="field">
+                <span>System message</span>
+                <textarea id="pgSystem" rows="2" spellcheck="false">You are a helpful assistant. Answer in Vietnamese when asked.</textarea>
+              </label>
+              <label class="field">
+                <span>User prompt</span>
+                <textarea id="pgPrompt" rows="5" spellcheck="false">Viết một câu slogan marketing cho dịch vụ dedicated inference của FPT, nhấn mạnh data residency Việt Nam.</textarea>
+              </label>
+              <label class="field pg-stream">
+                <input type="checkbox" id="pgStream" checked>
+                <span class="pg-stream-lbl">Stream tokens (SSE)</span>
+              </label>
+              <div class="pg-actions">
+                <button class="btn btn-primary" id="pgRunBtn">Run</button>
+                <button class="btn btn-ghost" id="pgClearBtn">Clear</button>
+              </div>
+              <details class="pg-curl">
+                <summary class="mono">Equivalent cURL</summary>
+                <pre class="code-block mono small"><code id="pgCurl">—</code></pre>
+                <button class="btn btn-ghost btn-sm copy-btn" data-copy="pgCurl">Copy</button>
+              </details>
+            </div>
+          </div>
+          <div class="pg-right">
+            <div class="panel pg-response">
+              <h2 class="panel-title"><span>Response</span><span class="pg-meta mono" id="pgMeta">idle</span></h2>
+              <pre class="pg-output mono" id="pgOutput" aria-live="polite">— Run a request to see output here.</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── Tab: API keys ─── -->
+      <div class="devtools-panel" id="dt-keys" role="tabpanel" hidden>
+        <div class="toolbar">
+          <button class="btn btn-primary" id="newKeyBtn">+ Create API key</button>
+          <span class="devtools-hint mono" id="keyCountLbl">—</span>
+        </div>
+
+        <div class="panel table-panel">
+          <table class="table">
+            <thead>
+              <tr><th>Name</th><th>Key</th><th>Scope</th><th>Role</th><th>Created</th><th>Last used</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody id="keyRows"></tbody>
+          </table>
+        </div>
+
+        <!-- create-key modal -->
+        <div class="drawer-overlay" id="keyModalOverlay" hidden></div>
+        <div class="modal" id="keyModal" role="dialog" aria-modal="true" aria-labelledby="keyModalTitle" hidden>
+          <div class="drawer-head">
+            <h2 id="keyModalTitle">Create API key</h2>
+            <button class="btn btn-ghost btn-sm" id="keyModalClose" aria-label="Close dialog">✕</button>
+          </div>
+          <form class="modal-body" id="keyForm" novalidate>
+            <label class="field">
+              <span>Key name</span>
+              <input type="text" id="fkName" placeholder="e.g. prod-server" required>
+            </label>
+            <fieldset class="field">
+              <span>Scope</span>
+              <div class="checkbox-grid" id="fkScopeList"></div>
+            </fieldset>
+            <label class="field">
+              <span>Role</span>
+              <select id="fkRole">
+                <option value="viewer" selected>viewer — read-only</option>
+                <option value="operator">operator — manage endpoints</option>
+                <option value="admin">admin — full</option>
+              </select>
+            </label>
+            <div class="modal-foot">
+              <span class="devtools-hint mono">Keys are scoped, revocable, and audit-logged. Role: admin = full · operator = manage endpoints · viewer = read-only.</span>
+              <button type="submit" class="btn btn-primary">Create key</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- reveal-once panel -->
+        <div class="drawer-overlay" id="keyRevealOverlay" hidden></div>
+        <div class="modal" id="keyReveal" role="dialog" aria-modal="true" aria-labelledby="keyRevealTitle" hidden>
+          <div class="drawer-head">
+            <h2 id="keyRevealTitle">Your new API key</h2>
+            <button class="btn btn-ghost btn-sm" id="keyRevealClose" aria-label="Close dialog">✕</button>
+          </div>
+          <div class="modal-body">
+            <p class="devtools-warn">Copy this key now. For security, it cannot be shown again.</p>
+            <pre class="code-block mono"><code id="keyRevealVal">—</code></pre>
+            <button class="btn btn-ghost btn-sm copy-btn" data-copy="keyRevealVal">Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── Tab: Agent skills ─── -->
+      <div class="devtools-panel" id="dt-skills" role="tabpanel" hidden>
+        <div class="toolbar">
+          <span class="devtools-hint mono">Invoke a skill from the console, or wire it into your own agent via OpenAI-compatible tool-calling.</span>
+          <button class="btn btn-primary" id="newSkillBtn">+ Register skill</button>
+        </div>
+        <div class="card-grid" id="skillCards"></div>
+
+        <div class="panel">
+          <div class="workflow-head">
+            <h2 class="panel-title">Invocation log — zenflow chạy thật</h2>
+            <span class="wf-live mono" id="skillLogLive">idle</span>
+          </div>
+          <pre class="term-body in-panel" id="skillLogBody" aria-live="polite">— Bấm Invoke trên một skill ở trên để xem transcript chạy thật từ backend zenflow.</pre>
+          <div class="skill-log-actions">
+            <button class="btn btn-ghost btn-sm" id="skillLogClear">Clear</button>
+            <button class="btn btn-ghost btn-sm" id="skillLogPoll">Poll active</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2 class="panel-title">Skill invocation — MCP-style tool definition</h2>
+          <pre class="code-block mono"><code id="skillMcp">—</code></pre>
+          <button class="btn btn-ghost btn-sm copy-btn" data-copy="skillMcp">Copy</button>
+        </div>
+      </div>
+
+      <!-- ─── Tab: Headroom API ─── -->
+      <div class="devtools-panel" id="dt-headroom" role="tabpanel" hidden>
+        <div class="panel">
+          <h2 class="panel-title">Headroom API — capacity per region</h2>
+          <p class="view-sub" style="margin-bottom:12px">GET <code class="mono">/v1/headroom?gpu=H100</code> returns allocatable accelerators per region — drive capacity-aware placement decisions in code.</p>
+          <div class="table-panel" style="padding:0">
+            <table class="table">
+              <thead><tr><th>Region</th><th>H100</th><th>H200</th><th>B300</th><th>A30</th><th>Status</th><th>Note</th></tr></thead>
+              <tbody id="headRows"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="panel">
+            <h2 class="panel-title">Sample request</h2>
+            <pre class="code-block mono"><code id="headReq">—</code></pre>
+            <button class="btn btn-ghost btn-sm copy-btn" data-copy="headReq">Copy</button>
+          </div>
+          <div class="panel">
+            <h2 class="panel-title">Sample response</h2>
+            <pre class="code-block mono"><code id="headResp">—</code></pre>
+            <button class="btn btn-ghost btn-sm copy-btn" data-copy="headResp">Copy</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Audit log (US-05 / WF-03) ── -->
+    <section class="view" id="view-audit" hidden>
+      <div class="view-head">
+        <h1>Audit log</h1>
+        <p class="view-sub">Immutable, append-only trail of sensitive actions — endpoint lifecycle, keys, guardrails, pricing. Nguồn: <code class="mono">GET /v1/audit</code> (cần scope <code>admin</code>).</p>
+      </div>
+
+      <div class="toolbar">
+        <label class="field" style="margin:0">
+          <span>Actor</span>
+          <input type="text" id="auditActor" placeholder="e.g. thuan@fpt.ai" autocomplete="off">
+        </label>
+        <label class="field" style="margin:0">
+          <span>Action</span>
+          <select id="auditAction">
+            <option value="">All</option>
+            <option value="endpoint.create">endpoint.create</option>
+            <option value="endpoint.guardrails">endpoint.guardrails</option>
+            <option value="key.create">key.create</option>
+            <option value="key.update">key.update</option>
+            <option value="key.revoke">key.revoke</option>
+            <option value="price-pack.create">price-pack.create</option>
+          </select>
+        </label>
+        <label class="field" style="margin:0">
+          <span>Time</span>
+          <select id="auditRange">
+            <option value="">All time</option>
+            <option value="1h">Last 1h</option>
+            <option value="24h">Last 24h</option>
+            <option value="7d">Last 7d</option>
+          </select>
+        </label>
+        <button class="btn btn-ghost" id="auditRefresh">Refresh</button>
+        <span class="devtools-hint mono" id="auditCountLbl" style="align-self:flex-end;margin-left:auto">— entries</span>
+      </div>
+
+      <div class="panel table-panel">
+        <table class="table">
+          <thead>
+            <tr><th>Timestamp</th><th>Actor</th><th>Role</th><th>Action</th><th>Entity</th><th>Result</th><th>IP</th></tr>
+          </thead>
+          <tbody id="auditRows"></tbody>
+        </table>
+        <p class="empty" id="auditEmpty" hidden>No audit entries match that filter.</p>
+      </div>
+    </section>
+
+    <!-- ── Infra ── -->
+    <section class="view" id="view-infra" hidden>
+      <div class="view-head">
+        <h1>AI infrastructure</h1>
+        <p class="view-sub">Dedicated GPU fleet, capacity by accelerator class, and regional distribution.</p>
+      </div>
+
+      <div class="card-grid" id="gpuCards"></div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <h2 class="panel-title">Regions</h2>
+          <ul class="region-list" id="regionList"></ul>
+        </div>
+        <div class="panel">
+          <h2 class="panel-title">Maintenance windows</h2>
+          <ul class="maint-list" id="maintList"></ul>
+        </div>
+      </div>
+
+      <div class="panel table-panel">
+        <table class="table">
+          <thead>
+            <tr><th>Node</th><th>GPU</th><th>Region</th><th>Utilization</th><th>Tenant</th><th>Status</th></tr>
+          </thead>
+          <tbody id="nodeRows"></tbody>
+        </table>
+      </div>
+
+      <div class="panel">
+        <h2 class="panel-title">GPU clusters — bare-metal + InfiniBand</h2>
+        <p class="view-sub" style="margin-bottom:12px">Multi-node capacity for training and custom inference engines.</p>
+        <div class="table-panel" style="padding:0">
+          <table class="table">
+            <thead>
+              <tr><th>Cluster</th><th>GPU</th><th>Fabric</th><th>Region</th><th>Utilization</th><th>Tenant</th><th>Status</th></tr>
+            </thead>
+            <tbody id="clusterRows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ═══ Partner drawer ═══ -->
+<div class="drawer-overlay" id="drawerOverlay" hidden></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle" hidden>
+  <div class="drawer-head">
+    <h2 id="drawerTitle">Partner</h2>
+    <button class="btn btn-ghost btn-sm" id="drawerClose" aria-label="Close panel">✕</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
+
+<!-- ═══ Create endpoint modal ═══ -->
+<div class="drawer-overlay" id="modalOverlay" hidden></div>
+<div class="modal" id="createModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" hidden>
+  <div class="drawer-head">
+    <h2 id="modalTitle">Create dedicated endpoint</h2>
+    <button class="btn btn-ghost btn-sm" id="modalClose" aria-label="Close dialog">✕</button>
+  </div>
+  <form class="modal-body" id="createForm" novalidate>
+    <label class="field">
+      <span>Endpoint name</span>
+      <input type="text" id="fName" placeholder="e.g. fraud-detect-bfsi" required>
+    </label>
+    <div class="field-row">
+      <label class="field">
+        <span>Model</span>
+        <select id="fModel"></select>
+      </label>
+      <label class="field">
+        <span>Region</span>
+        <select id="fRegion">
+          <option>HAN-1</option><option>HAN-2</option><option>SGN-1</option>
+        </select>
+      </label>
+    </div>
+    <div class="field-row">
+      <label class="field">
+        <span>GPU</span>
+        <select id="fGpu">
+          <option value="A30">A30 — $0.90/hr</option>
+          <option value="H100" selected>H100 — $2.50/hr</option>
+          <option value="H200">H200 — $3.30/hr</option>
+          <option value="B300">B300 — $5.50/hr</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Commit term</span>
+        <select id="fCommit">
+          <option value="on-demand">On-demand</option>
+          <option value="7-30">7–30 days (−9%)</option>
+          <option value="91-180">91–180 days (−27%)</option>
+        </select>
+      </label>
+    </div>
+    <div class="field-row">
+      <label class="field">
+        <span>Engine</span>
+        <select id="fEngine">
+          <option value="vllm" selected>vLLM</option>
+          <option value="triton">Triton</option>
+          <option value="tensorrt-llm">TensorRT-LLM</option>
+          <option value="nim">NVIDIA NIM</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Segment</span>
+        <select id="fSegment">
+          <option value="general">general</option>
+          <option value="coding">coding</option>
+          <option value="banking">banking</option>
+          <option value="securities">securities</option>
+          <option value="insurance">insurance</option>
+        </select>
+      </label>
+    </div>
+    <div class="field-row">
+      <label class="field">
+        <span>Guardrails template</span>
+        <select id="fGuardrailsTemplate">
+          <option value="">None</option>
+          <option value="banking">Banking — PII · injection · fin-advice</option>
+          <option value="insurance">Insurance — + medical</option>
+          <option value="general">General</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Code privacy</span>
+        <label class="checkbox-pill" style="margin-top:4px">
+          <input type="checkbox" id="fCodePrivacy">
+          <span>Không log mã nguồn (plaintext)</span>
+        </label>
+      </label>
+    </div>
+
+    <fieldset class="field">
+      <span>Deploy mode</span>
+      <div class="radio-cards" id="fModeCards">
+        <label class="radio-card is-on">
+          <input type="radio" name="fMode" value="k8s" checked>
+          <b>Kubernetes</b>
+          <small>Managed deployment with autoscaling on the DDI cluster</small>
+        </label>
+        <label class="radio-card">
+          <input type="radio" name="fMode" value="container">
+          <b>Container</b>
+          <small>Single dedicated container, full runtime control</small>
+        </label>
+      </div>
+    </fieldset>
+
+    <div id="k8sFields">
+      <div class="field-row">
+        <label class="field">
+          <span>Namespace</span>
+          <input type="text" id="fNamespace" value="ddi-prod">
+        </label>
+        <label class="field">
+          <span>Min / max replicas</span>
+          <div class="inline-pair">
+            <input type="number" id="fMinRep" value="1" min="1">
+            <input type="number" id="fMaxRep" value="4" min="1">
+          </div>
+        </label>
+      </div>
+      <div class="field-row">
+        <label class="field">
+          <span>Scaling metric</span>
+          <select id="fScalingMetric">
+            <option value="inflight" selected>Inflight requests</option>
+            <option value="gpu_util">GPU utilization (%)</option>
+            <option value="e2e_latency">E2E latency p95 (ms)</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Scaling target</span>
+          <input type="number" id="fScalingTarget" value="2000" min="1" placeholder="e.g. 2000">
+        </label>
+      </div>
+      <div class="field-row">
+        <label class="field">
+          <span>Context length (max_model_len)</span>
+          <input type="number" id="fMaxModelLen" placeholder="blank = model default">
+        </label>
+        <label class="field">
+          <span>&nbsp;</span>
+          <p class="devtools-hint mono" style="font-size:11px;margin:4px 0">Blank = dùng context length mặc định của model. Giảm để tăng throughput.</p>
+        </label>
+      </div>
+      <div class="field-row">
+        <label class="field">
+          <span>GPU count (tensor parallel)</span>
+          <select id="fGpuCount">
+            <option value="1" selected>1 GPU</option>
+            <option value="2">2 GPUs</option>
+            <option value="4">4 GPUs</option>
+            <option value="8">8 GPUs</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Quantization</span>
+          <select id="fQuantization">
+            <option value="bf16" selected>BF16</option>
+            <option value="fp8">FP8</option>
+            <option value="awq">AWQ</option>
+          </select>
+        </label>
+      </div>
+      <div class="field-row">
+        <label class="field">
+          <span>Host KV cache</span>
+          <select id="fHostKvCache">
+            <option value="false" selected>Off</option>
+            <option value="true">On (context dài)</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>&nbsp;</span>
+          <p class="devtools-hint mono" style="font-size:11px;margin:4px 0">Attach host memory cho KV cache — kéo dài context vượt VRAM.</p>
+        </label>
+      </div>
+      <div class="field-row">
+        <label class="field">
+          <span>Default temperature</span>
+          <input type="number" id="fDefTemp" value="1.0" min="0" max="2" step="0.1">
+        </label>
+        <label class="field">
+          <span>Default top_p</span>
+          <input type="number" id="fDefTopP" value="1.0" min="0.1" max="1" step="0.05">
+        </label>
+        <label class="field">
+          <span>Default max_tokens</span>
+          <input type="number" id="fDefMaxTok" value="1024" min="1">
+        </label>
+      </div>
+    </div>
+    <div id="containerFields" hidden>
+      <div class="field-row">
+        <label class="field">
+          <span>Container image</span>
+          <input type="text" id="fImage" placeholder="registry.fpt.vn/ddi/model:v1">
+        </label>
+        <label class="field">
+          <span>Port</span>
+          <input type="number" id="fPort" value="8000">
+        </label>
+      </div>
+    </div>
+
+    <fieldset class="field" style="margin-top:4px">
+      <span>USP (O3) — tùy chọn</span>
+      <div class="checkbox-grid">
+        <label class="checkbox-pill"><input type="checkbox" id="fAllowSwap" value="allow_gpu_swap"><span>Cho phép đổi GPU giữa kỳ (GPU swap)</span></label>
+        <p class="devtools-hint mono" style="grid-column:1/-1;font-size:11px;margin:4px 0">Carryover 20% quota tự động áp dụng khi stop — giờ cam kết còn lại được chuyển kỳ tiếp.</p>
+      </div>
+    </fieldset>
+
+    <div class="modal-foot">
+      <span class="price-preview mono" id="pricePreview">$2.50/hr</span>
+      <button type="submit" class="btn btn-primary">Deploy endpoint</button>
+    </div>
+  </form>
+</div>
+
+<!-- ═══ Toasts ═══ -->
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+<script src="app.js?v=18"></script>
+</body>
+</html>
