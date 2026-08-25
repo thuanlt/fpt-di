@@ -1,0 +1,19 @@
+{
+  "name": "fpt-ddi-backend",
+  "version": "2.0.0",
+  "description": "FPT DDI backend - Batch API (async, -50%) + Product CRUD",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node tests/batch/run-tests.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "ioredis": "^6.0.0",
+    "multer": "^2.2.0",
+    "pg": "^8.23.0",
+    "uuid": "^14.0.2"
+  }
+}

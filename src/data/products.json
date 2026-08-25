@@ -1,0 +1,11 @@
+[
+  {
+    "id": "a95de7c3-6006-4f0c-8c52-190c3fa83ff0",
+    "name": "Laptop Dell XPS",
+    "description": "Laptop cao cấp",
+    "price": 33000000,
+    "stock": 8,
+    "createdAt": "2026-08-20T03:43:59.551Z",
+    "updatedAt": "2026-08-20T03:44:02.988Z"
+  }
+]
