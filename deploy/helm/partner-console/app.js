@@ -3146,7 +3146,7 @@ function renderKeysTab() {
   }
 
   $("#fkScopeList").innerHTML = `
-    <label class="checkbox-pill" style="grid-column:1/-1;font-weight:600">
+    <label class="checkbox-pill checkbox-pill-all">
       <input type="checkbox" id="fkScopeAll">
       <span>Select all (${DATA.apiKeyScopes.length} scopes)</span>
     </label>` + DATA.apiKeyScopes.map((s) => `

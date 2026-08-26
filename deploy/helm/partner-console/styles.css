@@ -25,6 +25,8 @@
   --pink: #ec4899;         /* Vision tag */
   --purple: #a855f7;       /* Code tag */
   --blue: var(--fpt-blue);
+  --nv: #76b900;
+  --danger: #e5484d;
   --mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
   --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --rail-w: 248px;
@@ -1101,23 +1103,56 @@ input[type="file"]::file-selector-button:hover { border-color: var(--accent); }
   padding: 0;
 }
 .checkbox-pill {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  flex: 0 0 auto;
+  max-width: 100%;
   background: var(--bg-panel);
   border: 1px solid var(--line-strong);
   border-radius: 999px;
-  padding: 5px 12px;
+  padding: 6px 14px;
   cursor: pointer;
   font-size: 12px;
   color: var(--ink-dim);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
-.checkbox-pill input { accent-color: var(--accent); }
+.checkbox-pill input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.checkbox-pill span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.checkbox-pill span::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  border: 1px solid var(--line-strong);
+  background: var(--bg);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.checkbox-pill input:checked + span::before {
+  background: var(--accent) center / 10px 10px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.4 6.3 4.9 8.8l4.7-5.2' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  border-color: var(--accent);
+}
+.checkbox-pill input:focus-visible + span::before {
+  outline: 2px solid var(--accent-hi);
+  outline-offset: 2px;
+}
 .checkbox-pill:has(input:checked) {
   background: var(--accent-glow);
   border-color: var(--accent-deep);
   color: var(--accent);
 }
+.checkbox-pill-all { flex-basis: 100%; font-weight: 600; }
 .devtools-warn {
   color: var(--amber);
   font-size: 12.5px;
@@ -1201,7 +1236,10 @@ input[type="file"]::file-selector-button:hover { border-color: var(--accent); }
       "fleet  fleet" 44px
       "rail   main" 1fr / 64px 1fr;
   }
-  .rail-item span { display: none; }
+  .rail-item span, .rail-parent span, .rail-chev { display: none; }
+  .rail-parent { justify-content: center; padding: 10px 8px; }
+  .rail-sub { margin-left: 0; padding-left: 0; border-left: 0; }
+  .rail-subitem { justify-content: center; }
   .rail { padding: 14px 8px; align-items: center; }
   .rail-foot { display: none; }
   .main { padding: 20px 16px 50px; }
