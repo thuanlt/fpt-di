@@ -1,0 +1,57 @@
+# ──────────────────────────────────────────────────────────────
+# FPT DDI — values deploy public (chạy trên cụm FPT SmartCloud dev)
+# Override lên trên values.fpt-dev.yaml:
+#   helm upgrade --install fpt-ddi deploy/helm -n ddi --create-namespace \
+#     -f deploy/helm/values.fpt-dev.yaml -f deploy/helm/values.deploy.yaml
+# ──────────────────────────────────────────────────────────────
+
+namespace: ddi
+
+# 2 image đã push lên Docker Hub (public, không cần pullSecret)
+image:
+  backend: docker.io/thuanlt11/ddi-backend:v2.1.0
+  vllmAdapter: docker.io/thuanlt11/ddi-vllm-adapter:v2.1.0
+  pullPolicy: IfNotPresent
+  pullSecret: ""
+
+# Dev trial: user tự tạo demo key → tắt admin-gate (giống preview)
+keysAdminRequired: "false"
+
+storage:
+  storageClass: default-class
+
+# Web + worker chung 1 pod cho bản preview (đúng behaviour preview, tránh double-process)
+web:
+  WORKER_MODE: all
+  serviceType: LoadBalancer            # LB cấp IP public → user truy cập http://<IP>:3000
+
+worker:
+  enabled: false
+
+# vllm-adapter giả lập (dev cluster không có GPU thật) — giống preview
+vllmAdapter:
+  enabled: true
+
+playgroundPool:
+  enabled: true
+  realVllm: false
+  gpu:
+    count: 0
+
+# Postgres + Redis in-cluster
+postgres:
+  enabled: true
+  host: postgres
+  db: ddi
+  user: ddi
+  sslmode: disable
+
+redis:
+  enabled: true
+  host: redis
+  db: 0
+
+# Dev mở thoải mái
+ingress: { enabled: false }
+networkPolicy: { enabled: false }
+pdb: { enabled: false }
