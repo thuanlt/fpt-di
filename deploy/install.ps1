@@ -3,6 +3,13 @@
 #   cd ~/fpt-di; git pull; ./deploy/install.ps1
 $ErrorActionPreference = "Stop"
 
+# Thư mục cài helm user-local (nếu cài qua script ở trên) vào PATH cho phiên này
+$helmDir = "$env:LOCALAPPDATA\helm\windows-amd64"
+if (Test-Path "$helmDir\helm.exe") {
+  $env:Path = "$helmDir;$env:Path"
+  Write-Host "==> Đã thêm $helmDir vào PATH (Lens terminal)" -ForegroundColor DarkGray
+}
+
 $CHART_DIR = "deploy/helm"
 $NAMESPACE = "ddi"
 $RELEASE   = "fpt-ddi"
@@ -11,7 +18,11 @@ $VALUES_DEPLOY = "deploy/helm/values.deploy.yaml"
 
 Write-Host "==> Kiểm tra helm..." -ForegroundColor Cyan
 if (-not (Get-Command helm -ErrorAction SilentlyContinue)) {
-  Write-Host "helm chưa cài. Cài tại https://helm.sh/docs/intro/install/" -ForegroundColor Red
+  Write-Host "helm chưa cài. Cài bằng:" -ForegroundColor Red
+  Write-Host "  `$H=`"$env:LOCALAPPDATA\helm`"; New-Item -ItemType Directory -Force -Path `$H | Out-Null"
+  Write-Host "  Invoke-WebRequest 'https://get.helm.sh/helm-v3.16.3-windows-amd64.zip' -OutFile `"$H\h.zip`""
+  Write-Host "  Expand-Archive `"$H\h.zip`" -DestinationPath `$H -Force; Remove-Item `"$H\h.zip`""
+  Write-Host "Rồi chạy lại: cd ~/fpt-di; git pull; ./deploy/install.ps1" -ForegroundColor Yellow
   exit 1
 }
 helm version
