@@ -3,6 +3,10 @@
 }
 
 :5173 {
+  log {
+    output stdout
+    format json
+  }
   root * /srv
   encode gzip
 
