@@ -41,6 +41,8 @@ spec:
               {{- else }}
               value: "{{ .Values.postgres.password | default "ddi" }}"
               {{- end }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           volumeMounts:
             - name: pgdata
               mountPath: /var/lib/postgresql/data
