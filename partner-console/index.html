@@ -7,8 +7,8 @@
 <meta name="description" content="Partner console for NVIDIA alliance, model partners, serverless endpoints, and AI infrastructure.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=3">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
 <div class="app">
@@ -68,10 +68,6 @@
       <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M6.5 8.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm6 .5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM6.5 10c-2.5 0-4.5 1.6-4.5 3.7V16h9v-2.3c0-2.1-2-3.7-4.5-3.7zm6 .5c-.7 0-1.4.1-2 .4 1.2.8 2 2 2 3.4V16h4.5v-2.1c0-1.9-2-3.4-4.5-3.4z"/></svg>
       <span>Model partners</span>
     </a>
-    <a href="#/catalog" class="rail-item" data-view="catalog">
-      <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M2 3h6v6H2zm8 0h6v6h-6zM2 11h6v6H2zm8 0h6v6h-6z"/></svg>
-      <span>Model catalog</span>
-    </a>
     <a href="#/nim" class="rail-item" data-view="nim">
       <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M9 1 2 5v8l7 4 7-4V5zm0 2.2 4.6 2.6L9 8.5 4.4 5.8zM4 7.5l4 2.3v4.6L4 12zM10 14.4V9.8l4-2.3V12z"/></svg>
       <span>NIM catalog</span>
@@ -80,10 +76,23 @@
       <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M10 1 3 10h4l-1 7 8-10H9z"/></svg>
       <span>Serverless</span>
     </a>
-    <a href="#/dedicated" class="rail-item" data-view="dedicated">
-      <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M9 1 16 5v8l-7 4-7-4V5zm0 2.1L4.2 5.8 9 8.5l4.8-2.7zM3.6 7.4l4.5 2.5v4.9l-4.5-2.6zm10.8 0v4.8l-4.5 2.6V9.9z"/></svg>
-      <span>Dedicated inference</span>
-    </a>
+    <div class="rail-group" id="dedGroup">
+      <button class="rail-parent" id="dedGroupToggle" aria-expanded="true" aria-controls="dedSubmenu">
+        <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M9 1 16 5v8l-7 4-7-4V5zm0 2.1L4.2 5.8 9 8.5l4.8-2.7zM3.6 7.4l4.5 2.5v4.9l-4.5-2.6zm10.8 0v4.8l-4.5 2.6V9.9z"/></svg>
+        <span>Dedicated inference</span>
+        <svg class="rail-chev" viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M4 6l4 4 4-4z"/></svg>
+      </button>
+      <div class="rail-sub" id="dedSubmenu">
+        <a href="#/catalog" class="rail-item rail-subitem" data-view="catalog">
+          <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M2 3h6v6H2zm8 0h6v6h-6zM2 11h6v6H2zm8 0h6v6h-6z"/></svg>
+          <span>Model catalog</span>
+        </a>
+        <a href="#/dedicated" class="rail-item rail-subitem" data-view="dedicated">
+          <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M9 1 16 5v8l-7 4-7-4V5zm0 2.1L4.2 5.8 9 8.5l4.8-2.7zM3.6 7.4l4.5 2.5v4.9l-4.5-2.6zm10.8 0v4.8l-4.5 2.6V9.9z"/></svg>
+          <span>Endpoints</span>
+        </a>
+      </div>
+    </div>
     <a href="#/fine-tuning" class="rail-item" data-view="fine-tuning">
       <svg viewBox="0 0 18 18" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M2 14h2v-2H2zm4 0h2V6H6zm4 0h2V4h-2zm4 0h2V8h-2z"/></svg>
       <span>Fine-tuning</span>
@@ -217,6 +226,7 @@
         </div>
         <div class="chips" id="partnerChips" role="group" aria-label="Filter by status">
           <button class="chip is-on" data-filter="all">All</button>
+          <button class="chip" data-filter="pending">Pending</button>
           <button class="chip" data-filter="active">Active</button>
           <button class="chip" data-filter="trialing">Trialing</button>
           <button class="chip" data-filter="on hold">On hold</button>
@@ -365,9 +375,15 @@
 
     <!-- ── Model catalog ── -->
     <section class="view" id="view-catalog" hidden>
-      <div class="view-head">
-        <h1>Model catalog</h1>
-        <p class="view-sub">Frontier models, long context, and multi-modal — expanding from ~20 toward 200+.</p>
+      <div class="view-head cat-head">
+        <div>
+          <h1>Model Catalog</h1>
+          <p class="view-sub" id="catCount">— models from Hugging Face</p>
+        </div>
+        <button class="btn btn-primary" id="byomBtn">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true"><path d="M4.5 12a3.5 3.5 0 0 1-.4-6.98 4.5 4.5 0 0 1 8.7-1.02A3.5 3.5 0 0 1 12.5 12z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M8 11V7.4M8 7.4 6.4 9M8 7.4 9.6 9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Deploy model from Hugging Face
+        </button>
       </div>
 
       <div class="kpi-row">
@@ -378,13 +394,16 @@
       </div>
 
       <div class="toolbar">
+        <div class="search cat-search">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M6.8 1a5.8 5.8 0 1 0 3.5 10.4l3.6 3.6 1.1-1.1-3.6-3.6A5.8 5.8 0 0 0 6.8 1zm0 1.6a4.2 4.2 0 1 1 0 8.4 4.2 4.2 0 0 1 0-8.4z"/></svg>
+          <input type="search" id="catSearch" placeholder="Search: llama, qwen, embedding..." aria-label="Search models">
+        </div>
         <div class="chips" id="catChips" role="group" aria-label="Filter by modality">
           <button class="chip is-on" data-catfilter="all">All</button>
-          <button class="chip" data-catfilter="text">Text</button>
-          <button class="chip" data-catfilter="text+vision">Vision</button>
-          <button class="chip" data-catfilter="multimodal">Multi-modal</button>
+          <button class="chip" data-catfilter="chat">chat</button>
+          <button class="chip" data-catfilter="code">code</button>
+          <button class="chip" data-catfilter="vision">vision</button>
         </div>
-        <button class="btn btn-primary" id="byomBtn">Bring your own model</button>
       </div>
 
       <div class="card-grid" id="catalogGrid"></div>
@@ -607,6 +626,160 @@
           <span>Description (tùy chọn)</span>
           <input type="text" id="byomDescription" placeholder="LoRA adapter fine-tuned on Vietnamese corpus">
         </label>
+
+        <div class="panel-title" style="margin:12px 0 8px">Endpoint configuration — đồng bộ với popup tạo endpoint</div>
+        <div class="field-row">
+          <label class="field">
+            <span>Endpoint name</span>
+            <input type="text" id="byomEpName" placeholder="byom-&lt;model-name&gt;" autocomplete="off">
+          </label>
+          <label class="field">
+            <span>Region</span>
+            <select id="byomEpRegion">
+              <option>HAN-1</option><option selected>HAN-2</option><option>SGN-1</option>
+            </select>
+          </label>
+        </div>
+        <div class="field-row">
+          <label class="field">
+            <span>GPU</span>
+            <select id="byomEpGpu">
+              <option value="A30">A30 — $0.90/hr</option>
+              <option value="H100" selected>H100 — $2.50/hr</option>
+              <option value="H200">H200 — $3.30/hr</option>
+              <option value="B300">B300 — $5.50/hr</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Commit term</span>
+            <select id="byomEpCommit">
+              <option value="on-demand" selected>On-demand</option>
+              <option value="7-30">7–30 days (−9%)</option>
+              <option value="91-180">91–180 days (−27%)</option>
+            </select>
+          </label>
+        </div>
+        <div class="field-row">
+          <label class="field">
+            <span>Engine</span>
+            <select id="byomEpEngine">
+              <option value="vllm" selected>vLLM</option>
+              <option value="triton">Triton</option>
+              <option value="tensorrt-llm">TensorRT-LLM</option>
+              <option value="nim">NVIDIA NIM</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Segment</span>
+            <select id="byomEpSegment">
+              <option value="general" selected>general</option>
+              <option value="coding">coding</option>
+              <option value="banking">banking</option>
+              <option value="securities">securities</option>
+              <option value="insurance">insurance</option>
+            </select>
+          </label>
+        </div>
+        <div class="field-row">
+          <label class="field">
+            <span>Min / max replicas</span>
+            <div class="inline-pair">
+              <input type="number" id="byomEpMinRep" value="1" min="1">
+              <input type="number" id="byomEpMaxRep" value="1" min="1">
+            </div>
+          </label>
+          <label class="field">
+            <span>Quantization</span>
+            <select id="byomEpQuant">
+              <option value="bf16" selected>BF16</option>
+              <option value="fp8">FP8</option>
+              <option value="awq">AWQ</option>
+            </select>
+          </label>
+        </div>
+
+        <fieldset class="field">
+          <span>Deploy mode</span>
+          <div class="radio-cards" id="byomModeCards">
+            <label class="radio-card is-on">
+              <input type="radio" name="byomMode" value="k8s" checked>
+              <b>Kubernetes</b>
+              <small>Managed deployment with autoscaling on the DDI cluster</small>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="byomMode" value="container">
+              <b>Container</b>
+              <small>Single dedicated container, full runtime control</small>
+            </label>
+          </div>
+        </fieldset>
+
+        <div id="byomK8sFields">
+          <div class="field-row">
+            <label class="field">
+              <span>GPU count (tensor parallel)</span>
+              <select id="byomEpGpuCount">
+                <option value="1" selected>1 GPU</option><option value="2">2 GPUs</option><option value="4">4 GPUs</option><option value="8">8 GPUs</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Host KV cache</span>
+              <select id="byomEpHostKv">
+                <option value="false" selected>Off</option><option value="true">On (context dài)</option>
+              </select>
+            </label>
+          </div>
+          <div class="field-row">
+            <label class="field">
+              <span>Scaling metric</span>
+              <select id="byomEpScalingMetric">
+                <option value="inflight" selected>Inflight requests</option><option value="gpu_util">GPU utilization (%)</option><option value="e2e_latency">E2E latency p95 (ms)</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Scaling target</span>
+              <input type="number" id="byomEpScalingTarget" value="2000" min="1">
+            </label>
+          </div>
+          <div class="field-row">
+            <label class="field">
+              <span>Context length (max_model_len)</span>
+              <input type="number" id="byomEpMaxModelLen" placeholder="blank = model default">
+            </label>
+            <label class="field">
+              <span>Guardrails template</span>
+              <select id="byomEpGuardrails">
+                <option value="">None</option><option value="banking">Banking</option><option value="insurance">Insurance</option><option value="general">General</option>
+              </select>
+            </label>
+          </div>
+          <div class="field-row">
+            <label class="field"><span>Default temperature</span><input type="number" id="byomEpDefTemp" value="1.0" min="0" max="2" step="0.1"></label>
+            <label class="field"><span>Default top_p</span><input type="number" id="byomEpDefTopP" value="1.0" min="0.1" max="1" step="0.05"></label>
+            <label class="field"><span>Default max_tokens</span><input type="number" id="byomEpDefMaxTok" value="1024" min="1"></label>
+          </div>
+          <label class="field">
+            <span>Code privacy</span>
+            <label class="checkbox-pill" style="margin-top:4px">
+              <input type="checkbox" id="byomEpCodePrivacy">
+              <span>Không log mã nguồn (plaintext)</span>
+            </label>
+          </label>
+        </div>
+
+        <div id="byomContainerFields" hidden>
+          <div class="field-row">
+            <label class="field">
+              <span>Container image</span>
+              <input type="text" id="byomEpImage" placeholder="registry.fpt.vn/ddi/model:v1">
+            </label>
+            <label class="field">
+              <span>Port</span>
+              <input type="number" id="byomEpPort" value="8000">
+            </label>
+          </div>
+        </div>
+
         <div class="modal-foot">
           <button type="button" class="btn btn-ghost" id="byomModalCloseFoot">Hủy</button>
           <button type="submit" class="btn btn-primary" id="byomSubmitBtn">Upload</button>
@@ -1734,9 +1907,57 @@
   </form>
 </div>
 
+<!-- ═══ Partner onboarding modal (FR-ONB-001/002) ═══ -->
+<div class="drawer-overlay" id="onboardModalOverlay" hidden></div>
+<div class="modal" id="onboardModal" role="dialog" aria-modal="true" aria-labelledby="onboardModalTitle" hidden>
+  <div class="drawer-head">
+    <h2 id="onboardModalTitle">Request partner onboarding</h2>
+    <button class="btn btn-ghost btn-sm" id="onboardClose" aria-label="Close dialog">✕</button>
+  </div>
+  <form class="modal-body" id="onboardForm" novalidate>
+    <p class="devtools-hint mono">Tạo mới model partner — lưu vào backend, status mặc định <code>pending</code>. Cần API key role operator/admin.</p>
+    <label class="field">
+      <span>Partner name *</span>
+      <input type="text" id="onbName" maxlength="100" placeholder="Acme AI" autocomplete="off" required>
+    </label>
+    <label class="field">
+      <span>Contact email *</span>
+      <input type="email" id="onbContact" maxlength="100" placeholder="bd@acme.ai" autocomplete="off" required>
+    </label>
+    <div class="field-row">
+      <label class="field">
+        <span>Top model</span>
+        <input type="text" id="onbTop" maxlength="100" placeholder="Acme-7B" autocomplete="off">
+      </label>
+      <label class="field">
+        <span>Integration / serving stack</span>
+        <input type="text" id="onbIntegration" maxlength="100" placeholder="vLLM" autocomplete="off">
+      </label>
+    </div>
+    <label class="field">
+      <span>Status</span>
+      <select id="onbStatus">
+        <option value="pending" selected>pending</option>
+        <option value="trialing">trialing</option>
+        <option value="active">active</option>
+        <option value="on hold">on hold</option>
+      </select>
+    </label>
+    <label class="field">
+      <span>Notes</span>
+      <textarea id="onbNote" rows="3" maxlength="500" placeholder="Ghi chú onboarding (tùy chọn)"></textarea>
+    </label>
+    <p class="form-error mono" id="onboardError" hidden></p>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-ghost" id="onboardCancelBtn">Cancel</button>
+      <button type="submit" class="btn btn-primary" id="onboardSubmitBtn">Submit</button>
+    </div>
+  </form>
+</div>
+
 <!-- ═══ Toasts ═══ -->
 <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=20"></script>
+<script src="app.js?v=26"></script>
 </body>
 </html>

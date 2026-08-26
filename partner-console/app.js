@@ -6,7 +6,7 @@
 /* ── API key holder — lưu trong localStorage, tự động đính kèm vào mọi fetch /v1/* operational ── */
 const _origFetch = window.fetch.bind(window);
 let ACTIVE_API_KEY = localStorage.getItem("fptDdiKey") || "";
-const AUTH_PATHS = ["/v1/batch", "/v1/models", "/v1/endpoints", "/v1/skills", "/v1/chat", "/v1/byom", "/v1/audit", "/v1/price-packs", "/v1/dashboard", "/v1/documents"];
+const AUTH_PATHS = ["/v1/batch", "/v1/models", "/v1/endpoints", "/v1/skills", "/v1/chat", "/v1/byom", "/v1/audit", "/v1/price-packs", "/v1/dashboard", "/v1/documents", "/v1/partners"];
 let _lastAuthToast = 0;
 function authFailToast(status, json) {
   const now = Date.now();
@@ -464,7 +464,7 @@ const $ = (sel) => document.querySelector(sel);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 function statusLabel(s) {
-  return { running: "Running", paused: "Paused", degraded: "Degraded", deploying: "Deploying", active: "Active", trialing: "Trialing", "on hold": "On hold", maint: "Maintenance", failed: "Failed", cancelled: "Cancelled", queued: "Queued", completed: "Completed", validating: "Validating", in_progress: "In progress", finalizing: "Finalizing" }[s] || s;
+  return { running: "Running", paused: "Paused", degraded: "Degraded", deploying: "Deploying", active: "Active", trialing: "Trialing", "on hold": "On hold", pending: "Pending", maint: "Maintenance", failed: "Failed", cancelled: "Cancelled", queued: "Queued", completed: "Completed", validating: "Validating", in_progress: "In progress", finalizing: "Finalizing" }[s] || s;
 }
 
 function utilBar(util) {
@@ -627,11 +627,26 @@ function renderNvidia() {
 /* ── Partners view ─────────────────────────── */
 let partnerQuery = "";
 let partnerFilter = "all";
+// Partner list fetch từ GET /v1/partners (không còn dùng mock static DATA.partners)
+let partners = [];
+
+async function fetchPartners() {
+  try {
+    const res = await fetch("/v1/partners");
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const json = await res.json();
+    partners = json.data || [];
+  } catch (e) {
+    console.warn("[partners] fetch lỗi:", e.message);
+    partners = [];
+  }
+  renderPartners();
+}
 
 function renderPartners() {
   const q = partnerQuery.trim().toLowerCase();
-  const rows = DATA.partners.filter((p) => {
-    const matchQ = !q || p.name.toLowerCase().includes(q) || p.top.toLowerCase().includes(q);
+  const rows = partners.filter((p) => {
+    const matchQ = !q || p.name.toLowerCase().includes(q) || (p.top || "").toLowerCase().includes(q);
     const matchF = partnerFilter === "all" || p.status === partnerFilter;
     return matchQ && matchF;
   });
@@ -650,7 +665,7 @@ function renderPartners() {
 }
 
 function openPartnerDrawer(name) {
-  const p = DATA.partners.find((x) => x.name === name);
+  const p = partners.find((x) => x.name === name);
   if (!p) return;
   $("#drawerTitle").textContent = p.name;
   $("#drawerBody").innerHTML = `
@@ -673,6 +688,106 @@ function openPartnerDrawer(name) {
 function closeDrawer() {
   $("#drawer").hidden = true;
   $("#drawerOverlay").hidden = true;
+}
+
+/* ── Partner onboarding — modal + submit (FR-ONB-001..024) ── */
+function openOnboardModal() {
+  $("#onbName").value = "";
+  $("#onbContact").value = "";
+  $("#onbTop").value = "";
+  $("#onbIntegration").value = "";
+  $("#onbStatus").value = "pending";
+  $("#onbNote").value = "";
+  hideOnboardError();
+  $("#onboardModal").hidden = false;
+  $("#onboardModalOverlay").hidden = false;
+  $("#onbName").focus();
+}
+
+function closeOnboardModal() {
+  $("#onboardModal").hidden = true;
+  $("#onboardModalOverlay").hidden = true;
+}
+
+function showOnboardError(msg) {
+  const el = $("#onboardError");
+  el.textContent = msg;
+  el.hidden = false;
+}
+function hideOnboardError() {
+  const el = $("#onboardError");
+  el.textContent = "";
+  el.hidden = true;
+}
+
+// Client-side validation (FR-ONB-011..014) — chặn trước khi gọi API.
+// Trả về true nếu hợp lệ; nếu sai hiện lỗi inline + focus trường đầu tiên sai.
+function validateOnboardForm() {
+  const name = $("#onbName").value.trim();
+  const contact = $("#onbContact").value.trim();
+  const top = $("#onbTop").value.trim();
+  const integration = $("#onbIntegration").value.trim();
+  const note = $("#onbNote").value.trim();
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!name) { showOnboardError("Partner name is required"); $("#onbName").focus(); return false; }
+  if (name.length > 100) { showOnboardError("Partner name must be ≤ 100 characters"); $("#onbName").focus(); return false; }
+  if (!contact) { showOnboardError("Contact email is required"); $("#onbContact").focus(); return false; }
+  if (!EMAIL_RE.test(contact)) { showOnboardError("Contact must be a valid email"); $("#onbContact").focus(); return false; }
+  if (contact.length > 100) { showOnboardError("Contact must be ≤ 100 characters"); $("#onbContact").focus(); return false; }
+  if (top.length > 100) { showOnboardError("Top model must be ≤ 100 characters"); $("#onbTop").focus(); return false; }
+  if (integration.length > 100) { showOnboardError("Integration must be ≤ 100 characters"); $("#onbIntegration").focus(); return false; }
+  if (note.length > 500) { showOnboardError("Notes must be ≤ 500 characters"); $("#onbNote").focus(); return false; }
+  return true;
+}
+
+async function submitOnboard(e) {
+  e.preventDefault();
+  if (!validateOnboardForm()) return; // không gọi API nếu sai (FR-ONB-011..014)
+
+  const body = {
+    name: $("#onbName").value.trim(),
+    contact: $("#onbContact").value.trim(),
+    top: $("#onbTop").value.trim(),
+    integration: $("#onbIntegration").value.trim(),
+    status: $("#onbStatus").value,
+    note: $("#onbNote").value.trim(),
+  };
+
+  $("#onboardSubmitBtn").disabled = true;
+  $("#onboardSubmitBtn").textContent = "Đang tạo…";
+  try {
+    const res = await fetch("/v1/partners", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (res.status === 201) {
+      closeOnboardModal();
+      toast(`Đã tạo partner ${json.name || body.name} (${json.status || "pending"})`);
+      await fetchPartners();
+      return;
+    }
+    // 400/403/409/500 → toast cụ thể, giữ modal mở
+    if (res.status === 400) {
+      const d = (json.details || []).map((x) => `${x.field}: ${x.message}`).join("; ");
+      showOnboardError(d || (json.error || "Dữ liệu không hợp lệ"));
+    } else if (res.status === 403) {
+      showOnboardError(json.message || "Thiếu quyền — cần role operator/admin hoặc scope endpoints");
+    } else if (res.status === 409) {
+      showOnboardError(json.message || "Partner đã tồn tại");
+    } else if (res.status === 401) {
+      showOnboardError("Cần API key hợp lệ — set key ở tab API Keys");
+    } else {
+      showOnboardError(`Lỗi server (${res.status}), thử lại`);
+    }
+  } catch (err) {
+    showOnboardError("Network error: " + err.message);
+  } finally {
+    $("#onboardSubmitBtn").disabled = false;
+    $("#onboardSubmitBtn").textContent = "Submit";
+  }
 }
 
 /* ── Serverless view ───────────────────────── */
@@ -1540,8 +1655,32 @@ function renderInfra() {
     </tr>`).join("");
 }
 
-/* ── Catalog view (gap: frontier models, long ctx, multi-modal, BYOM) ── */
+/* ── Catalog view (neo.fpt.ai design: frontier, long ctx, multi-modal, BYOM) ── */
 let catalogFilter = "all";
+let catalogQuery = "";
+
+const VENDOR_COLORS = {
+  "Meta": "#0866ff", "DeepSeek": "#4d6bfe", "Alibaba": "#ff6a00", "Zhipu": "#1f6feb",
+  "Moonshot": "#7c3aed", "MiniMax": "#ec4899", "NVIDIA": "#76b900", "DeepCognito": "#0ea5e9",
+  "OpenAI": "#10a37f", "Pika": "#f472b6", "FPT.AI": "#3b82f6", "VinAI": "#e11d48", "Google": "#4285f4"
+};
+function vendorColor(v) { return VENDOR_COLORS[v] || "#3b82f6"; }
+function vendorInitial(v) { return (v || "?").trim().charAt(0).toUpperCase(); }
+function modelSlug(v, m) {
+  const clean = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return `${clean(v)}/${clean(m)}`;
+}
+function modalTags(m) {
+  const tags = [];
+  const modal = (m.modal || "").toLowerCase();
+  if (modal.includes("text")) tags.push('<span class="model-tag chat">Chat</span>');
+  if (modal.includes("vision")) tags.push('<span class="model-tag vision">Vision</span>');
+  if (modal.includes("code")) tags.push('<span class="model-tag code">Code</span>');
+  if (modal.includes("audio")) tags.push('<span class="model-tag audio">Audio</span>');
+  if (modal === "image") tags.push('<span class="model-tag img">Image</span>');
+  if (modal === "video") tags.push('<span class="model-tag vid">Video</span>');
+  return tags;
+}
 
 function renderCatalog() {
   const multimodal = DATA.catalog.filter((m) => m.modal !== "text" && m.modal !== "text+code");
@@ -1551,26 +1690,44 @@ function renderCatalog() {
     return Math.max(mx, n);
   }, 0);
 
-  $("#kpiCatTotal").textContent = DATA.catalog.length + (DATA.catalog.length >= 20 ? "" : "");
+  $("#kpiCatTotal").textContent = DATA.catalog.length;
   $("#kpiCatFrontier").textContent = frontier.length;
   $("#kpiCatModal").textContent = multimodal.length;
   $("#kpiCatCtx").textContent = (maxCtx >= 1000 ? (maxCtx / 1000) + "M" : maxCtx + "K");
 
+  const countEl = $("#catCount");
+  if (countEl) countEl.textContent = `${DATA.catalog.length} models from Hugging Face`;
+
   const q = catalogFilter;
-  const rows = DATA.catalog.filter((m) => q === "all" || m.modal === q || (q === "multimodal" && m.modal !== "text" && m.modal !== "text+code"));
+  const query = catalogQuery.trim().toLowerCase();
+  const rows = DATA.catalog.filter((m) => {
+    const modal = (m.modal || "").toLowerCase();
+    const matchFilter = q === "all"
+      || (q === "chat" && modal.includes("text"))
+      || (q === "code" && modal.includes("code"))
+      || (q === "vision" && modal.includes("vision"));
+    if (!matchFilter) return false;
+    if (!query) return true;
+    return `${m.model} ${m.vendor} ${m.note} ${m.modal}`.toLowerCase().includes(query);
+  });
 
   $("#catalogGrid").innerHTML = rows.map((m) => {
-    const ctxBadge = m.ctx === "—" ? "" : `<span class="card-tag t-blue">${esc(m.ctx)} ctx</span>`;
-    const modalBadge = (m.modal === "text" || m.modal === "text+code") ? "" : `<span class="card-tag t-amber">${esc(m.modal)}</span>`;
-    const newBadge = m.status === "new" ? `<span class="card-tag">NEW</span>` : "";
+    const newBadge = m.status === "new" ? '<span class="new-badge">✦ New</span>' : "";
+    const tags = modalTags(m);
+    const sizeTag = m.size && m.size !== "—" ? `<span class="model-tag spec">${esc(m.size)}</span>` : "";
+    const ctxTag = m.ctx && m.ctx !== "—" ? `<span class="model-tag spec">${esc(m.ctx)} ctx</span>` : "";
+    const color = vendorColor(m.vendor);
     return `<div class="card model-card">
-      <div class="model-head">${newBadge}${ctxBadge}${modalBadge}</div>
-      <h3>${esc(m.model)}</h3>
-      <p>${esc(m.vendor)} · ${esc(m.size)}</p>
-      <p class="model-note">${esc(m.note)}</p>
-      <div class="card-stats">
-        <div><b>${esc(m.ctx)}</b><span>context</span></div>
-        <div><b>${esc(m.modal)}</b><span>modality</span></div>
+      <div class="model-top">
+        <span class="model-logo" style="background:${color}">${esc(vendorInitial(m.vendor))}</span>
+        <div class="model-title"><span class="model-name">${esc(m.model)}</span>${newBadge}</div>
+      </div>
+      <div class="model-id">${esc(modelSlug(m.vendor, m.model))}</div>
+      <p class="model-desc">${esc(m.note)}</p>
+      <div class="model-tags">${tags.join("")}${sizeTag}${ctxTag}</div>
+      <div class="model-foot">
+        <div class="model-stat"><b>${esc(m.size === "—" ? "—" : m.size)}</b><span>size</span></div>
+        <div class="model-stat"><b>${esc(m.ctx === "—" ? "—" : m.ctx)}</b><span>context</span></div>
       </div>
     </div>`;
   }).join("");
@@ -1793,6 +1950,14 @@ function syncByomSourceLabel() {
   $("#byomHfTokenField").style.display = type === "huggingface" ? "" : "none";
 }
 
+function setByomMode(mode) {
+  $("#byomK8sFields").hidden = mode !== "k8s";
+  $("#byomContainerFields").hidden = mode !== "container";
+  document.querySelectorAll("#byomModeCards .radio-card").forEach((c) => {
+    c.classList.toggle("is-on", c.querySelector("input").value === mode);
+  });
+}
+
 async function fetchByomJobs() {
   try {
     const res = await fetch("/v1/byom");
@@ -1872,6 +2037,36 @@ async function submitByomJob(e) {
 
   const body = { modelSource, modelName, type, description };
   if (type === "huggingface" && hfToken) body.hfToken = hfToken;
+  // Endpoint configuration — đồng bộ với popup tạo endpoint, lưu vào job để deploy dùng
+  const epMode = document.querySelector('input[name="byomMode"]:checked').value;
+  const grTmpl = $("#byomEpGuardrails").value;
+  body.endpointConfig = {
+    name: $("#byomEpName").value.trim() || "byom-" + modelName,
+    gpu: $("#byomEpGpu").value,
+    region: $("#byomEpRegion").value,
+    commit: $("#byomEpCommit").value,
+    engine: $("#byomEpEngine").value,
+    segment: $("#byomEpSegment").value,
+    minReplicas: Math.max(1, parseInt($("#byomEpMinRep").value, 10) || 1),
+    maxReplicas: Math.max(1, parseInt($("#byomEpMaxRep").value, 10) || 1),
+    quantization: $("#byomEpQuant").value,
+    mode: epMode,
+    gpuCount: parseInt($("#byomEpGpuCount").value, 10) || 1,
+    hostKvCache: $("#byomEpHostKv").value === "true",
+    scalingMetric: $("#byomEpScalingMetric").value,
+    scalingTarget: parseInt($("#byomEpScalingTarget").value, 10) || 2000,
+    maxModelLen: $("#byomEpMaxModelLen").value.trim() === "" ? null : parseInt($("#byomEpMaxModelLen").value, 10),
+    samplingDefaults: {
+      temperature: parseFloat($("#byomEpDefTemp").value) || 1.0,
+      top_p: parseFloat($("#byomEpDefTopP").value) || 1.0,
+      max_tokens: parseInt($("#byomEpDefMaxTok").value, 10) || 1024,
+    },
+    codePrivacy: !!$("#byomEpCodePrivacy").checked,
+    guardrailsEnabled: !!grTmpl,
+    guardrailsTemplate: grTmpl || undefined,
+    image: epMode === "container" ? ($("#byomEpImage").value || "") : undefined,
+    port: epMode === "container" ? (parseInt($("#byomEpPort").value, 10) || 8000) : undefined,
+  };
 
   $("#byomSubmitBtn").disabled = true;
   $("#byomSubmitBtn").textContent = "Đang submit…";
@@ -1926,16 +2121,18 @@ async function byomAction(action, jobId, modelName) {
   } else if (action === "byom-playground") {
     openPlayground(jobId, modelName);
   } else if (action === "byom-deploy") {
+    const job = byomJobs.find((j) => j.id === jobId);
+    const cfg = (job && job.endpointConfig) || {};
     const r = await fetch(`/v1/byom/${jobId}/deploy`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify(cfg),
     });
     const json = await r.json().catch(() => ({}));
     if (!r.ok) {
       toast(`Lỗi ${r.status}: ${json.error || ""}`);
     } else {
-      toast(`Đã deploy ${modelName} → endpoint "${json.data.name}" (xem tab Dedicated)`);
+      toast(`Đã deploy ${modelName} → endpoint "${json.data?.name || ""}"`);
       location.hash = "#/dedicated";
       fetchDedicated();
     }
@@ -3712,6 +3909,12 @@ function route() {
   document.querySelectorAll(".rail-item").forEach((a) => {
     a.classList.toggle("is-active", a.dataset.view === view);
   });
+  // auto-open nhóm rail nếu một sub-item đang active
+  document.querySelectorAll(".rail-group").forEach((g) => {
+    const hasActive = g.querySelector(".rail-item.is-active");
+    g.classList.toggle("has-active", !!hasActive);
+    if (hasActive) g.classList.add("is-open");
+  });
   $("#main").focus({ preventScroll: true });
   window.scrollTo(0, 0);
 }
@@ -3740,6 +3943,7 @@ async function init() {
   fetchDedicated();
   fetchBatchJobs();
   fetchKeys();
+  fetchPartners();
   fetchColdStart();
   renderWorkflow("k8s");
   route();
@@ -3773,6 +3977,16 @@ async function init() {
   $("#railToggle").addEventListener("click", () => {
     const collapsed = document.body.classList.toggle("rail-collapsed");
     $("#railToggle").setAttribute("aria-expanded", String(!collapsed));
+  });
+
+  // rail group (collapsible sub-menu) — toggle khi click parent
+  $("#rail").addEventListener("click", (e) => {
+    const parent = e.target.closest(".rail-parent");
+    if (!parent) return;
+    const group = parent.closest(".rail-group");
+    if (!group) return;
+    const open = group.classList.toggle("is-open");
+    parent.setAttribute("aria-expanded", String(open));
   });
 
   // sync
@@ -3832,7 +4046,7 @@ async function init() {
     document.querySelectorAll("#partnerChips .chip").forEach((c) => c.classList.toggle("is-on", c === chip));
     renderPartners();
   });
-  $("#addPartnerBtn").addEventListener("click", () => toast("Onboarding request drafted — partner team will follow up"));
+  $("#addPartnerBtn").addEventListener("click", openOnboardModal);
 
   // partner drawer (click + keyboard)
   $("#partnerRows").addEventListener("click", (e) => {
@@ -3847,7 +4061,13 @@ async function init() {
   });
   $("#drawerClose").addEventListener("click", closeDrawer);
   $("#drawerOverlay").addEventListener("click", closeDrawer);
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeDrawer(); closeCreateModal(); } });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeDrawer(); closeCreateModal(); closeOnboardModal(); } });
+
+  // partner onboarding modal
+  $("#onboardClose").addEventListener("click", closeOnboardModal);
+  $("#onboardModalOverlay").addEventListener("click", closeOnboardModal);
+  $("#onboardCancelBtn").addEventListener("click", closeOnboardModal);
+  $("#onboardForm").addEventListener("submit", submitOnboard);
 
   // endpoint logs buttons
   $("#endpointRows").addEventListener("click", (e) => {
@@ -3901,12 +4121,17 @@ async function init() {
     }
   });
 
-  // catalog filters (gap #12 — model catalog)
+  // catalog filters + search (neo.fpt.ai model catalog)
   $("#catChips").addEventListener("click", (e) => {
     const chip = e.target.closest(".chip");
     if (!chip) return;
     catalogFilter = chip.dataset.catfilter;
     document.querySelectorAll("#catChips .chip").forEach((c) => c.classList.toggle("is-on", c === chip));
+    renderCatalog();
+  });
+  const catSearchEl = $("#catSearch");
+  if (catSearchEl) catSearchEl.addEventListener("input", () => {
+    catalogQuery = catSearchEl.value;
     renderCatalog();
   });
 
@@ -4007,6 +4232,9 @@ async function init() {
     if (e.key === "Escape" && !$("#pgDeployModal").hidden) closePgDeployModal();
   });
   $("#byomType").addEventListener("change", syncByomSourceLabel);
+  document.querySelectorAll('#byomModeCards input[name="byomMode"]').forEach((r) => {
+    r.addEventListener("change", () => setByomMode(r.value));
+  });
   $("#byomForm").addEventListener("submit", submitByomJob);
   $("#byomRows").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-action]");

@@ -20,7 +20,7 @@ const COMMITS = ["on-demand", "7-30", "91-180"];
 // US-01 — segment + engine (NIM deploy)
 // US-03 — thêm "securities" (chứng khoán — structured output, SLA p95 ≤500ms)
 const SEGMENTS = ["general", "coding", "banking", "securities", "insurance", "retail", "manufacturing", "telecom"];
-const ENGINES = ["vllm", "nim", "tensorrt-llm"];
+const ENGINES = ["vllm", "nim", "tensorrt-llm", "triton"];
 const DATA_RESIDENCIES = ["VN", "SG", "US"];
 // US-02 — guardrails template (NeMo) — rules mặc định theo template
 const GUARDRAIL_TEMPLATES = {

@@ -18,7 +18,7 @@ function isS3Url(s) {
 // POST /byom — submit upload job (HF repo or S3 presigned URL)
 router.post("/byom", async (req, res) => {
   try {
-    const { modelSource, modelName, hfToken, description, type } = req.body || {};
+    const { modelSource, modelName, hfToken, description, type, endpointConfig } = req.body || {};
     if (!modelSource || typeof modelSource !== "string") {
       return res.status(400).json({ error: "modelSource bắt buộc (HF repo path hoặc S3 presigned URL)" });
     }
@@ -40,8 +40,8 @@ router.post("/byom", async (req, res) => {
       try {
         const info = await fetchHfRepoInfo({ repo: modelSource, hfToken });
         const pipeline = (info.pipeline_tag || "text-generation").toLowerCase();
-        if (!["text-generation", "feature-extraction", "text2text-generation", "embedding", null, ""].includes(pipeline)) {
-          return res.status(400).json({ error: `HF pipeline "${pipeline}" không hỗ trợ (chỉ text-generation/embedding)` });
+        if (!["text-generation", "text2text-generation", "feature-extraction", "embedding", "image-text-to-text", "image-to-text", null, ""].includes(pipeline)) {
+          return res.status(400).json({ error: `HF pipeline "${pipeline}" không hỗ trợ (chỉ text-generation / embedding / image-text-to-text)` });
         }
       } catch (e) {
         if (e.code === "HF_REPO_NOT_FOUND") return res.status(404).json({ error: `HF repo "${modelSource}" không tồn tại` });
@@ -68,6 +68,7 @@ router.post("/byom", async (req, res) => {
       status: "queued",
       createdAt: now,
       updatedAt: now,
+      endpointConfig: endpointConfig || null,
       events: [{ at: now, from: null, to: "queued", msg: `queued for ${resolvedType} fetch` }],
       payload: { type: resolvedType, modelSource, modelName, hfToken: hfToken || null },
     };
@@ -98,6 +99,7 @@ router.get("/byom", (req, res) => {
       readyAt: j.readyAt || null, failedAt: j.failedAt || null,
       download: j.download || null, validation: j.validation || null,
       error: j.error || null,
+      endpointConfig: j.endpointConfig || null,
     }));
     res.json({ count: clean.length, data: clean });
   } catch (e) {
@@ -168,6 +170,23 @@ router.post("/byom/:id/deploy", async (req, res) => {
       commit: body.commit || "on-demand",
       minReplicas: body.minReplicas || 1,
       maxReplicas: body.maxReplicas || 1,
+      // Đồng bộ đầy đủ config với popup tạo endpoint
+      image: body.image,
+      port: body.port,
+      allowGpuSwap: body.allowGpuSwap,
+      scalingMetric: body.scalingMetric,
+      scalingTarget: body.scalingTarget,
+      maxModelLen: body.maxModelLen,
+      gpuCount: body.gpuCount,
+      quantization: body.quantization,
+      hostKvCache: body.hostKvCache,
+      samplingDefaults: body.samplingDefaults,
+      segment: body.segment,
+      engine: body.engine,
+      codePrivacy: body.codePrivacy,
+      guardrailsEnabled: body.guardrailsEnabled,
+      guardrailsTemplate: body.guardrailsTemplate,
+      dataResidency: body.dataResidency,
     });
     store.updateMeta(req.params.id, {
       status: "deployed",
