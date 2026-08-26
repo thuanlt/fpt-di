@@ -1,3 +1,4 @@
+{{- if .Values.worker.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -33,8 +34,10 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ .Release.Name }}-config
+            {{- if .Values.envSecret.create }}
             - secretRef:
                 name: {{ .Values.envSecret.name | default "ddi-prod-env" }}
+            {{- end }}
           env:
             - name: WORKER_MODE
               value: "{{ .Values.worker.WORKER_MODE }}"
@@ -54,3 +57,4 @@ spec:
         - name: batch
           persistentVolumeClaim:
             claimName: {{ .Release.Name }}-batch
+{{- end }}

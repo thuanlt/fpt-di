@@ -28,10 +28,14 @@ spec:
           command: ["redis-server", "--requirepass", "$(REDIS_PASSWORD)", "--save", "60", "1"]
           env:
             - name: REDIS_PASSWORD
+              {{- if .Values.envSecret.create }}
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.envSecret.name | default "ddi-prod-env" }}
                   key: REDIS_PASSWORD
+              {{- else }}
+              value: "{{ .Values.redis.password | default "ddi" }}"
+              {{- end }}
           ports:
             - containerPort: 6379
           readinessProbe:

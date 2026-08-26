@@ -23,3 +23,7 @@ data:
   KEYS_ADMIN_REQUIRED: {{ .Values.keysAdminRequired | default "true" | quote }}
   FPT_DDI_INFERENCE_URL: "http://{{ .Release.Name }}-vllm-adapter:8000"
   WORKER_MODE: "all"
+  {{- if not .Values.envSecret.create }}
+  PG_PASSWORD: "{{ .Values.postgres.password | default "ddi" }}"
+  REDIS_PASSWORD: "{{ .Values.redis.password | default "ddi" }}"
+  {{- end }}
