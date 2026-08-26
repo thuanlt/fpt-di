@@ -63,6 +63,8 @@ spec:
               mountPath: /data/byom
             - name: batch
               mountPath: /data/batch
+            - name: partner-console
+              mountPath: /app/public
       volumes:
         - name: byom
           persistentVolumeClaim:
@@ -70,3 +72,6 @@ spec:
         - name: batch
           persistentVolumeClaim:
             claimName: {{ .Release.Name }}-batch
+        - name: partner-console
+          configMap:
+            name: {{ .Release.Name }}-partner-console

@@ -1,0 +1,13 @@
+{{- if .Values.web.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-partner-console
+  namespace: {{ .Values.namespace | default .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: fpt-ddi
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: web
+data:
+{{ (.Files.Glob "partner-console/*").AsConfig | indent 2 }}
+{{- end }}
