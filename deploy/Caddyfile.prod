@@ -28,6 +28,16 @@ console.fpt-ddi.vn {
     reverse_proxy backend:3000
   }
 
+  # Model Catalog Admin — static UI (chỉ nội bộ: nên thêm IP allowlist/VPN ở ingress)
+# Khớp cả /admin (không slash) và /admin/...
+  handle_path /admin* {
+    root * /srv/admin-console
+    @htmlAdmin path / *.html
+    header @htmlAdmin Cache-Control "no-store, max-age=0"
+    try_files {path} /index.html
+    file_server
+  }
+
   handle {
     @html path / *.html
     header @html Cache-Control "no-store, max-age=0"

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FPT DDI — Model Catalog Admin</title>
+  <link rel="stylesheet" href="/admin/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">DDI</span>
+      <span class="brand-text">Model Catalog <em>Admin</em></span>
+    </div>
+    <nav class="nav">
+      <a href="#/" data-nav="list">Model Catalog</a>
+      <a href="#/categories" data-nav="categories">Categories</a>
+      <a href="#/sync" data-nav="sync">Sync & Mirror</a>
+    </nav>
+    <div class="topbar-right">
+      <input type="password" id="apiKeyInput" class="key-input mono" placeholder="dán key admin…" aria-label="API key" />
+      <span id="roleBadge" class="role-badge" hidden></span>
+      <span id="keyBadge" class="key-badge" hidden></span>
+    </div>
+  </header>
+
+  <main id="view" class="main">
+    <div class="loading-screen"><div class="spinner"></div><p>Đang tải…</p></div>
+  </main>
+
+  <div id="toastHost" class="toast-host"></div>
+
+  <!-- Modal xác nhận -->
+  <div id="modalHost" class="modal-host" hidden>
+    <div class="modal-backdrop"></div>
+    <div class="modal" role="dialog" aria-modal="true">
+      <h3 id="modalTitle"></h3>
+      <p id="modalBody"></p>
+      <div class="modal-actions">
+        <button id="modalCancel" class="btn btn-ghost">Hủy</button>
+        <button id="modalConfirm" class="btn btn-primary">Xác nhận</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/admin/js/api.js"></script>
+  <script src="/admin/js/ui.js"></script>
+  <script src="/admin/js/m1-list.js"></script>
+  <script src="/admin/js/m2-form.js"></script>
+  <script src="/admin/js/m4-detail.js"></script>
+  <script src="/admin/js/m5-categories.js"></script>
+  <script src="/admin/js/m6-sync.js"></script>
+  <script src="/admin/js/app.js"></script>
+</body>
+</html>

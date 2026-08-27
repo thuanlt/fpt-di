@@ -13,7 +13,8 @@ const crypto = require("crypto");
 const BACKEND = (process.env.KEYS_BACKEND || "file").toLowerCase();
 const ALL_SCOPES = ["chat", "endpoints", "batch", "byom", "fine-tune", "clusters", "playground", "billing", "admin"];
 // US-10 — phân quyền theo vai trò
-const ALL_ROLES = ["admin", "operator", "viewer"];
+// + 'approver' — Model Catalog Admin: duyệt entry (tách khỏi creator — segregation of duties)
+const ALL_ROLES = ["admin", "operator", "viewer", "approver"];
 const DEFAULT_ROLE = "viewer";
 const KEY_PREFIX = "ddi-live-";
 

@@ -80,7 +80,7 @@ router.get("/keys/verify", async (req, res) => {
   if (!rec) {
     return res.status(401).json({ valid: false, error: "API key không hợp lệ hoặc đã bị thu hồi" });
   }
-  res.json({ valid: true, id: rec.id, name: rec.name, scopes: rec.scopes, status: rec.status });
+  res.json({ valid: true, id: rec.id, name: rec.name, scopes: rec.scopes, status: rec.status, role: rec.role });
 });
 
 router.get("/keys/:id", async (req, res) => {

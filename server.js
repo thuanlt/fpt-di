@@ -13,6 +13,7 @@ const dataRouter = require('./src/data/routes');
 const inferenceRouter = require('./src/inference/routes').router;
 const auditRouter = require('./src/audit/routes');
 const catalogRouter = require('./src/catalog/routes');
+const catalogAdminRouter = require('./src/catalog-admin/routes');
 const pricingRouter = require('./src/pricing/routes');
 const dashboardRouter = require('./src/dashboard/routes');
 const documentsRouter = require('./src/documents/routes');
@@ -22,6 +23,7 @@ const worker = require('./src/batch/worker');
 const byomWorker = require('./src/byom/worker');
 const endpointWorker = require('./src/endpoints/worker');
 const documentsWorker = require('./src/documents/worker');
+const mcMirrorWorker = require('./src/catalog-admin/mirror');
 const { shutdown: queueShutdown, ping: redisPing } = require('./src/batch/queue');
 const byomCfg = require('./src/byom/config');
 const documentsCfg = require('./src/documents/config');
@@ -49,6 +51,7 @@ app.get('/health', async (req, res) => {
       byom: byomWorker.status(),
       endpoint: endpointWorker.status(),
       documents: documentsWorker.status(),
+      mcMirror: mcMirrorWorker.status(),
       mode: process.env.WORKER_MODE || 'all',
     },
     postgres: pgOk,
@@ -77,6 +80,7 @@ function pathScope(p) {
   }
   if (p === '/models' || p === '/batch' || p.startsWith('/batch/')) return 'batch';
   if (p === '/audit') return 'admin'; // US-05 — audit chỉ admin
+  if (p === '/admin/catalog' || p.startsWith('/admin/catalog/')) return 'admin'; // Model Catalog Admin — scope admin
   if (p === '/byom' || p.startsWith('/byom/')) return 'byom';
   // US-06 — price packs (scope admin)
   if (p === '/price-packs' || p.startsWith('/price-packs/')) return 'admin';
@@ -100,6 +104,15 @@ function pathScope(p) {
 // /keys mutations chỉ enforce role khi KEYS_ADMIN_REQUIRED=true (prod) — preview giữ open để bootstrap.
 function roleRequirement(method, p) {
   const m = String(method || '').toUpperCase();
+  // Model Catalog Admin — role gate:
+  //   approve/reject + pending-updates → admin/approver
+  //   mutations khác (create/update/submit/disable/enable/delete/category/mirror) → admin
+  //   GET → mọi role có scope admin đọc được
+  if (p === '/admin/catalog' || p.startsWith('/admin/catalog/')) {
+    if (m === 'GET') return null;
+    if (/\/(approve|reject)$/.test(p) || p.startsWith('/admin/catalog/pending-updates/')) return ['admin', 'approver'];
+    return ['admin'];
+  }
   // Guardrails config + events → admin
   if (/^\/endpoints\/[^/]+\/guardrails(\/events)?$/.test(p)) return ['admin'];
   // Audit log → admin
@@ -189,7 +202,7 @@ app.get('/v1/metrics/cold-start', async (req, res) => {
 });
 
 // Mount router operational — tất cả dùng prefix /v1
-app.use('/v1', keysRouter, batchRouter, byomRouter, skillsRouter, endpointsRouter, endpointInvokeRouter, inferenceRouter, auditRouter, catalogRouter, pricingRouter, dashboardRouter, documentsRouter, partnersRouter);
+app.use('/v1', keysRouter, batchRouter, byomRouter, skillsRouter, endpointsRouter, endpointInvokeRouter, inferenceRouter, auditRouter, catalogRouter, catalogAdminRouter, pricingRouter, dashboardRouter, documentsRouter, partnersRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Không tìm thấy endpoint' });
@@ -224,7 +237,8 @@ const server = app.listen(PORT, async () => {
     byomWorker.start();
     endpointWorker.start();
     documentsWorker.start();
-    console.log(`[workers] mode=${WORKER_MODE} — batch+byom+endpoint+documents đã khởi động`);
+    mcMirrorWorker.start();
+    console.log(`[workers] mode=${WORKER_MODE} — batch+byom+endpoint+documents+mc-mirror đã khởi động`);
   } else {
     console.log(`[workers] mode=${WORKER_MODE} — web/API-only, không khởi động workers`);
   }
@@ -236,6 +250,7 @@ function graceful(signal) {
   byomWorker.stop();
   endpointWorker.stop();
   documentsWorker.stop();
+  mcMirrorWorker.stop();
   Promise.all([queueShutdown(), db.shutdown()]).finally(() => {
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 5000).unref();
