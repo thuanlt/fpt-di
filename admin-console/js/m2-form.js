@@ -31,7 +31,7 @@ const M2 = {
         <h2><span class="step">${isHf ? "2" : "1"}</span>Metadata model</h2>
         <div class="form-grid">
           <div class="field"><label>ID entry <span class="req">*</span></label><input id="fId" placeholder="llama-3-3-70b-instruct-fp8" /></div>
-          <div class="field"><label>HF Model ID <span class="req">*</span></label><input id="fHfId" ${isHf ? "readonly" : ""} placeholder="nvidia/Llama-3.3-70B-Instruct-FP8" /></div>
+          <div class="field"><label>HF Model ID <span class="req">*</span></label><input id="fHfId" placeholder="nvidia/Llama-3.3-70B-Instruct-FP8" /></div>
           <div class="field"><label>Display name <span class="req">*</span></label><input id="fName" placeholder="Llama 3.3 70B Instruct" /></div>
           <div class="field"><label>License <span class="req">*</span></label><input id="fLicense" placeholder="llama3.3 / mit / apache-2.0" /></div>
           <div class="field full"><label>Short description <span class="req">*</span></label><textarea id="fDesc" placeholder="Mô tả ngắn model…"></textarea></div>

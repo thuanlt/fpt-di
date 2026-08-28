@@ -8,9 +8,12 @@ const cfg = {
     baseUrl: process.env.MC_BFF_BASE_URL || "", // VD: https://ai-v2-api-dev.fci.vn/api/bff/v1
     org: process.env.MC_BFF_ORG || "",
     ws: process.env.MC_BFF_WS || "",
-    // Auth gọi BFF: header name + token (service credential)
+    // Auth gọi BFF: header name + token (JWT phiên đăng nhập BFF)
     authHeader: process.env.MC_BFF_AUTH_HEADER || "Cookie",
-    authToken: process.env.MC_BFF_AUTH_TOKEN || "", // VD: "auth_token=<JWT>"
+    authToken: process.env.MC_BFF_AUTH_TOKEN || "", // JWT (gửi dạng Cookie: auth_token=<JWT>)
+    refreshToken: process.env.MC_BFF_REFRESH_TOKEN || "", // refresh JWT khi 401
+    region: process.env.MC_BFF_REGION || "", // header X-Region
+    refreshPath: process.env.MC_BFF_REFRESH_PATH || "auth/token/refresh",
     timeoutMs: parseInt(process.env.MC_BFF_TIMEOUT_MS || "15000", 10),
     // DRY_RUN=true → không gọi BFF thật, chỉ log (dev/local, chờ service credential)
     dryRun: process.env.MC_BFF_DRY_RUN !== "false",

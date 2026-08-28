@@ -6,15 +6,83 @@
 
 const cfg = require("./config");
 
+// JWT hiện hành — có thể được refresh tại runtime khi BFF trả 401
+let currentAuthToken = cfg.bff.authToken;
+
 function bffUrl(action) {
   const base = cfg.bff.baseUrl.replace(/\/$/, "");
   return `${base}/ddi/${cfg.bff.org}/workspaces/${cfg.bff.ws}/${action}`;
 }
 
+function bffRefreshUrl() {
+  const base = cfg.bff.baseUrl.replace(/\/$/, "");
+  return `${base}/${cfg.bff.refreshPath}`;
+}
+
 function bffHeaders() {
   const h = { "Content-Type": "application/json" };
-  if (cfg.bff.authHeader && cfg.bff.authToken) h[cfg.bff.authHeader] = cfg.bff.authToken;
+  if (currentAuthToken) {
+    const val = /cookie/i.test(cfg.bff.authHeader) ? `auth_token=${currentAuthToken}` : currentAuthToken;
+    h[cfg.bff.authHeader] = val;
+  }
+  if (cfg.bff.region) h["X-Region"] = cfg.bff.region;
   return h;
+}
+
+// doFetch — POST JSON có timeout, trả { ok, status, json, text }
+async function doFetch(url, body) {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), cfg.bff.timeoutMs);
+  try {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: bffHeaders(),
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const text = await resp.text().catch(() => "");
+    let json = null;
+    try { json = text ? JSON.parse(text) : null; } catch (_) {}
+    return { ok: resp.ok, status: resp.status, json, text };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// refreshAuthToken() — gọi auth/token/refresh bằng refresh_token để lấy JWT mới.
+// Thành công → cập nhật currentAuthToken, trả true.
+async function refreshAuthToken() {
+  if (!cfg.bff.refreshToken) return false;
+  try {
+    const r = await doFetch(bffRefreshUrl(), { payload: { refresh_token: cfg.bff.refreshToken } });
+    if (!r.ok) {
+      console.log(`[mc-publish] refresh token lỗi HTTP ${r.status}`);
+      return false;
+    }
+    const d = (r.json && (r.json.data || r.json)) || {};
+    const dd = (r.json && r.json.data && typeof r.json.data === "object") ? r.json.data : {};
+    const newToken = d.auth_token || d.token || d.jwt || dd.auth_token || dd.token || dd.jwt || null;
+    if (!newToken) {
+      console.log("[mc-publish] refresh: không tìm thấy JWT mới trong response");
+      return false;
+    }
+    currentAuthToken = String(newToken);
+    console.log("[mc-publish] ✓ refresh JWT thành công");
+    return true;
+  } catch (e) {
+    console.log(`[mc-publish] refresh token lỗi: ${e.message}`);
+    return false;
+  }
+}
+
+async function callBff(action, payload) {
+  let r = await doFetch(bffUrl(action), { payload });
+  // 401 → refresh JWT rồi gọi lại 1 lần
+  if (r.status === 401 && cfg.bff.refreshToken) {
+    const refreshed = await refreshAuthToken();
+    if (refreshed) r = await doFetch(bffUrl(action), { payload });
+  }
+  return r;
 }
 
 // entryToBffPayload — map entry admin → payload BFF (khớp Postman collection)
@@ -37,25 +105,6 @@ function entryToBffPayload(e) {
   };
 }
 
-async function callBff(action, payload) {
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), cfg.bff.timeoutMs);
-  try {
-    const resp = await fetch(bffUrl(action), {
-      method: "POST",
-      headers: bffHeaders(),
-      body: JSON.stringify({ payload }),
-      signal: controller.signal,
-    });
-    const text = await resp.text().catch(() => "");
-    let json = null;
-    try { json = text ? JSON.parse(text) : null; } catch (_) {}
-    return { ok: resp.ok, status: resp.status, json, text };
-  } finally {
-    clearTimeout(t);
-  }
-}
-
 // publish(entry) — create, nếu "đã tồn tại" → update. Trả { ok, dryRun, action, detail }
 async function publish(entry) {
   const payload = entryToBffPayload(entry);
@@ -65,6 +114,9 @@ async function publish(entry) {
   }
   if (!cfg.bff.baseUrl || !cfg.bff.org || !cfg.bff.ws) {
     return { ok: false, dryRun: false, action: "create", detail: "BFF chưa cấu hình (MC_BFF_BASE_URL/ORG/WS)" };
+  }
+  if (!currentAuthToken) {
+    return { ok: false, dryRun: false, action: "create", detail: "BFF chưa cấu hình token (MC_BFF_AUTH_TOKEN)" };
   }
   const createRes = await callBff("ddi.model-catalog-create", payload);
   if (createRes.ok) return { ok: true, dryRun: false, action: "create", detail: createRes.json };
@@ -86,6 +138,7 @@ async function unpublish(entry) {
     return { ok: true, dryRun: true, action: "update" };
   }
   if (!cfg.bff.baseUrl) return { ok: false, dryRun: false, action: "update", detail: "BFF chưa cấu hình" };
+  if (!currentAuthToken) return { ok: false, dryRun: false, action: "update", detail: "BFF chưa cấu hình token (MC_BFF_AUTH_TOKEN)" };
   const res = await callBff("ddi.model-catalog-update", payload);
   return { ok: res.ok, dryRun: false, action: "update", detail: res.ok ? res.json : `BFF lỗi ${res.status}: ${String(res.text || "").slice(0, 200)}` };
 }

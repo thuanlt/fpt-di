@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>VibeFlow in Action — FPT Dedicated Inference</title>
+<style>
+:root{
+  --bg:#0e1626;--surface:#16233a;--surface-2:#1a2a44;
+  --text:#eef4fb;--muted:#93a7c4;
+  --accent:#f97316;--accent2:#6ec3f5;--accent3:#F27123;
+  --border:#2a3b58;--border-strong:#3b507a;
+  --grid:#14213a;
+  --disp:"Arial Narrow","Avenir Next Condensed","Roboto Condensed","Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"JetBrains Mono","Cascadia Mono",Consolas,"DejaVu Sans Mono",monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;
+  background:#0a111e;color:var(--text);
+  font-size:20px;line-height:1.5;
+}
+.deck{display:flex;flex-direction:column;align-items:center}
+.slide-wrap{width:var(--scaled-w,1920px);height:var(--scaled-h,1080px);position:relative;overflow:hidden;border-bottom:1px solid var(--border)}
+.slide-wrap > .slide{transform:scale(var(--scale,1));transform-origin:top left;border-bottom:0}
+.slide{
+  position:relative;width:1920px;height:1080px;min-height:1080px;max-height:1080px;
+  padding:72px 96px 92px;display:flex;flex-direction:column;
+  background:var(--bg);overflow:hidden;
+}
+/* blueprint grid nền */
+.slide::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:
+    repeating-linear-gradient(0deg,var(--grid) 0 1px,transparent 1px 96px),
+    repeating-linear-gradient(90deg,var(--grid) 0 1px,transparent 1px 96px);
+}
+.slide > *{position:relative}
+.slide.cover,.slide.section-divider{align-items:center;justify-content:center;text-align:center}
+.slide.cover{background:#101c30}
+.slide.cover::before{background:
+    repeating-linear-gradient(0deg,#182a47 0 1px,transparent 1px 72px),
+    repeating-linear-gradient(90deg,#182a47 0 1px,transparent 1px 72px);}
+
+h1,h2,h3{font-family:var(--disp);font-weight:700;line-height:1.12;text-transform:uppercase;letter-spacing:.5px}
+.slide h1{font-size:4.6em;color:#fff}
+.slide h1 .or{color:var(--accent)}
+.slide h2{font-size:2.3em;color:#fff;margin-bottom:.45em;padding-bottom:.25em;border-bottom:3px solid var(--accent);display:inline-block;align-self:flex-start}
+.slide h3{font-size:1.25em;color:var(--accent2);margin-bottom:.35em}
+.slide p{font-size:1.1em;color:var(--muted);margin-bottom:.8rem}
+.slide ul{padding-left:1.4em;margin-top:.4rem}
+.slide ul li{font-size:clamp(1.1em,1.5vw,1.3em);margin:.5em 0;line-height:1.45}
+.slide ul li::marker{color:var(--accent)}
+.kicker{font-family:var(--mono);color:var(--accent2);font-size:1em;letter-spacing:2px;text-transform:uppercase;margin-bottom:.8rem}
+.mono{font-family:var(--mono)}
+.dim{color:var(--muted)}
+
+.card-grid{display:grid;gap:1.2rem;margin-top:.6rem}
+.grid2{grid-template-columns:1fr 1fr}
+.grid3{grid-template-columns:1fr 1fr 1fr}
+.grid4{grid-template-columns:1fr 1fr 1fr 1fr}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.4rem 1.7rem;overflow-wrap:break-word;word-break:break-word}
+.card-title{font-family:var(--disp);font-weight:700;font-size:1.3em;color:var(--accent2);margin-bottom:.45em;text-transform:uppercase;letter-spacing:.5px}
+.card p{font-size:1em;margin-bottom:.3rem}
+
+.badge{display:inline-block;padding:6px 16px;border-radius:20px;font-size:.9em;font-weight:600;margin-bottom:.6rem;font-family:var(--mono)}
+.badge-blue{background:#123252;color:#8ecdf7}
+.badge-orange{background:#3d2209;color:#fba55c}
+.badge-green{background:#0b3325;color:#6ee7b7}
+.badge-red{background:#3d1215;color:#fca5a5}
+
+.flow-row{display:flex;align-items:center;justify-content:center;gap:.9rem;flex-wrap:wrap;margin:.6em 0}
+.flow-node{background:var(--surface);border:2px solid var(--accent2);border-radius:10px;padding:.75rem 1.3rem;text-align:center;font-family:var(--disp);font-size:clamp(1em,1.4vw,1.25em);font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text);min-width:150px}
+.flow-node.accent{background:#123252;border-color:var(--accent2);color:#bfe3fb}
+.flow-node.warm,.flow-node.orange{background:var(--accent);border-color:var(--accent);color:#fff}
+.flow-node.green{background:#0b3325;border-color:#22c55e;color:#a7f3d0}
+.flow-arrow{font-size:1.6em;color:var(--accent2);font-weight:700}
+.flow-label{font-family:var(--mono);font-size:.95em;color:var(--muted);text-align:center;margin:.25em 0;font-weight:600}
+
+.highlight-box{background:var(--surface-2);border-left:4px solid var(--accent);border-radius:10px;padding:1.2rem 1.7rem;margin-top:1.2rem;font-size:1.1em;color:var(--text)}
+.accent-box{background:#241a10;border-left:4px solid var(--accent2);border-radius:10px;padding:1.2rem 1.7rem;margin-top:1rem;font-size:1.1em;color:var(--text)}
+
+table{width:100%;border-collapse:collapse;font-size:clamp(.95em,1.3vw,1.08em);margin-top:.6rem}
+th{background:#1d2c47;color:#bfe3fb;padding:12px 16px;text-align:left;font-weight:700;font-family:var(--mono);font-size:.92em;text-transform:uppercase;letter-spacing:1px}
+td{padding:10px 16px;border-bottom:1px solid var(--border);color:var(--text)}
+tr:nth-child(even) td{background:#121e33}
+
+.big-number{font-family:var(--disp);font-size:clamp(3em,6vw,5em);font-weight:900;color:var(--accent);line-height:1}
+.big-number.cy{color:var(--accent2)}
+.big-label{font-size:1.05em;color:var(--muted);margin-top:.3em;font-family:var(--mono)}
+
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:2.2rem;align-items:start;margin-top:.4rem}
+
+/* console mock */
+.mock{background:#f4f7fb;border-radius:12px;border:2px solid var(--accent2);padding:1.1rem 1.3rem;color:#1a2536;font-size:.95em}
+.mock .m-head{font-family:var(--mono);font-size:.95em;background:#e2e9f2;border-radius:8px;padding:.5rem .9rem;margin-bottom:.9rem;color:#33415c}
+.mock .m-title{font-weight:700;font-size:1.15em;margin-bottom:.7rem;color:#101828}
+.mock .m-cards{display:flex;gap:.9rem;margin-bottom:.9rem}
+.mock .m-card{border:1px solid #d4deea;border-radius:8px;padding:.6rem 1rem;flex:1;background:#fff}
+.mock .m-card b{display:block;font-size:1.5em}
+.mock .m-card span{font-family:var(--mono);font-size:.72em;color:#66788f;text-transform:uppercase;letter-spacing:1px}
+.mock table{font-size:.85em}
+.mock th{background:#e8eef6;color:#4a5b74}
+.mock td{color:#22304a;border-bottom:1px solid #e2e9f2}
+.mock tr:nth-child(even) td{background:#f8fafc}
+.pill{display:inline-block;background:#d9f4e3;color:#177245;border-radius:999px;padding:2px 12px;font-size:.85em;font-weight:700}
+
+/* sparse modifiers — chữ to, thoáng, ít chữ vẫn đầy khung */
+.slide.slide--sparse h2{font-size:3.1em}
+.slide.slide--sparse h3{font-size:1.7em}
+.slide.slide--sparse p{font-size:1.6em}
+.slide.slide--sparse ul li{font-size:1.9em;margin:.9em 0}
+.slide.slide--sparse table{font-size:1.45em}
+.slide.slide--sparse th,.slide.slide--sparse td{padding:24px 28px}
+.slide.slide--sparse .flow-node{font-size:1.6em;padding:1.4rem 2rem;min-width:210px}
+.slide.slide--sparse .flow-arrow{font-size:2.2em}
+.slide.slide--sparse .flow-label{font-size:1.3em}
+.slide.slide--sparse .card-title{font-size:1.9em}
+.slide.slide--sparse .card{padding:2.4rem 2.6rem}
+.slide.slide--sparse .card p{font-size:1.3em}
+.slide.slide--sparse .card-grid{gap:2rem;margin-top:1.2rem}
+.slide.slide--sparse .highlight-box,.slide.slide--sparse .accent-box{font-size:1.6em;padding:2rem 2.4rem}
+.slide.slide--sparse .two-col{gap:3.4rem;margin-top:1.2rem}
+.slide.slide--sparse .mock{font-size:1.25em}
+.slide.slide--sparse .big-number{font-size:clamp(4.5em,7vw,6em)}
+.slide.slide--sparse .kicker{font-size:1.3em}
+
+.slide.slide--very-sparse h2{font-size:3.6em}
+.slide.slide--very-sparse h3{font-size:2em}
+.slide.slide--very-sparse p{font-size:2em}
+.slide.slide--very-sparse ul{margin-top:1rem}
+.slide.slide--very-sparse ul li{font-size:2.4em;margin:1.3em 0}
+.slide.slide--very-sparse table{font-size:1.7em}
+.slide.slide--very-sparse th,.slide.slide--very-sparse td{padding:24px 30px}
+.slide.slide--very-sparse .flow-node{font-size:1.9em;padding:1.7rem 2.4rem;min-width:240px}
+.slide.slide--very-sparse .flow-arrow{font-size:2.6em}
+.slide.slide--very-sparse .flow-label{font-size:1.5em}
+.slide.slide--very-sparse .card-title{font-size:2.2em}
+.slide.slide--very-sparse .card{padding:2.8rem 3rem}
+.slide.slide--very-sparse .card p{font-size:1.5em}
+.slide.slide--very-sparse .card-grid{gap:2.2rem;margin-top:1.6rem}
+.slide.slide--very-sparse .highlight-box,.slide.slide--very-sparse .accent-box{font-size:1.9em;padding:2.3rem 2.7rem}
+.slide.slide--very-sparse .two-col{gap:4rem;margin-top:1.4rem}
+.slide.slide--very-sparse .mock{font-size:1.45em}
+.slide.slide--very-sparse .big-number{font-size:clamp(5em,8vw,7.5em)}
+.slide.slide--very-sparse .big-label{font-size:1.45em}
+.slide.slide--very-sparse .kicker{font-size:1.4em}
+
+/* tier giữa: giữa sparse và very-sparse */
+.slide.slide--mid h2{font-size:3.3em}
+.slide.slide--mid h3{font-size:1.85em}
+.slide.slide--mid p{font-size:1.8em}
+.slide.slide--mid ul{margin-top:1rem}
+.slide.slide--mid ul li{font-size:2.1em;margin:1.05em 0}
+.slide.slide--mid table{font-size:1.6em}
+.slide.slide--mid th,.slide.slide--mid td{padding:22px 28px}
+.slide.slide--mid .flow-node{font-size:1.7em;padding:1.5rem 2.2rem;min-width:220px}
+.slide.slide--mid .flow-arrow{font-size:2.4em}
+.slide.slide--mid .flow-label{font-size:1.4em}
+.slide.slide--mid .card-title{font-size:2.05em}
+.slide.slide--mid .card{padding:2.6rem 2.8rem}
+.slide.slide--mid .card p{font-size:1.4em}
+.slide.slide--mid .card-grid{gap:2rem;margin-top:1.3rem}
+.slide.slide--mid .highlight-box,.slide.slide--mid .accent-box{font-size:1.75em;padding:2.1rem 2.5rem}
+.slide.slide--mid .two-col{gap:3.7rem;margin-top:1.3rem}
+.slide.slide--mid .mock{font-size:1.4em}
+.slide.slide--mid .big-number{font-size:clamp(5em,8vw,7em)}
+.slide.slide--mid .big-label{font-size:1.4em}
+.slide.slide--mid .kicker{font-size:1.35em}
+
+/* tinh chỉnh từng slide (hội tụ fill 90-100%) */
+#s2 ul li{font-size:2.3em;margin:1.15em 0}
+#s3 .mock{font-size:1em}
+#s3 .two-col{margin-top:.4rem}
+#s3 .flow-row{margin-top:.6rem}
+#s3 ul li{font-size:1.8em;margin:.8em 0}
+#s5 .card p{font-size:1.55em}
+#s5 .card{padding:2.6rem 3rem}
+#s6 .card p{font-size:1.45em}
+#s9 .card p{font-size:1.6em}
+#s9 .card{padding:3rem}
+#s11 ul{margin-top:.5rem}
+#s11 ul li{font-size:2em;margin:1em 0}
+#s11 .flow-node{font-size:1.8em}
+
+.attribution{position:absolute;bottom:14px;left:24px;font-size:12px;color:var(--muted);opacity:.6;pointer-events:none}
+.slide.cover .attribution{color:#5f7699}
+.slide-number{position:absolute;bottom:14px;right:24px;font-size:14px;color:var(--muted);opacity:.7;font-family:var(--mono)}
+.slide.cover .slide-number{color:#5f7699}
+.brand-mark{position:absolute;top:22px;right:32px;width:96px;height:auto;pointer-events:none;z-index:5}
+
+#slide-nav{position:fixed;top:0;left:0;right:0;background:#101c30;color:white;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;z-index:1000;gap:1rem;font-size:.95em;border-bottom:2px solid var(--accent)}
+#slide-nav button{background:#1d2c47;color:white;border:1px solid var(--border-strong);border-radius:6px;padding:6px 14px;cursor:pointer;font-size:1em}
+.theme-toggle{position:fixed;top:64px;right:20px;z-index:999;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:1.1em}
+body{padding-top:54px}
+.thumb-nav{position:fixed;left:0;top:54px;bottom:0;width:220px;background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:12px 10px;z-index:998;display:none}
+.thumb-nav.open{display:block}
+body.thumbs-open{padding-left:220px}
+body.thumbs-open .theme-toggle{left:240px;right:auto}
+.thumb{width:200px;height:112px;margin-bottom:10px;border:2px solid var(--border);border-radius:4px;overflow:hidden;cursor:pointer;position:relative;background:#0e1626}
+.thumb:hover{border-color:var(--accent2)}
+.thumb.active{border-color:var(--accent)}
+.thumb-inner{width:1920px;height:1080px;transform:scale(0.1042);transform-origin:top left;pointer-events:none}
+.thumb-num{position:absolute;top:3px;left:4px;font-size:10px;font-weight:600;background:#000000aa;color:#fff;padding:1px 5px;border-radius:3px;z-index:2}
+.thumb-toggle{position:fixed;top:64px;left:20px;z-index:999;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:1.1em}
+
+@media print{
+  *,*::before,*::after{box-shadow:none!important;text-shadow:none!important;filter:none!important;backdrop-filter:none!important}
+}
+</style>
+</head>
+<body>
+<div id="slide-nav">
+  <div><strong>VibeFlow in Action — FPT Dedicated Inference</strong></div>
+  <div><button onclick="prevSlide()">◀</button> <span id="nav-pos">1 / N</span> <button onclick="nextSlide()">▶</button></div>
+</div>
+<button class="thumb-toggle" onclick="toggleThumbs()" title="Slides">☰</button>
+<button class="theme-toggle" onclick="toggleTheme()">🌙</button>
+<aside class="thumb-nav" id="thumb-nav"></aside>
+<div class="deck">
+<section class="slide cover" id="s1">
+  <div class="kicker">Workshop · Best practice · Building with VibeFlow</div>
+  <h1>Code by words —<br><span class="or">Launch by vibe.</span></h1>
+  <p style="color:#9fb3cc;font-size:1.4em;margin-top:1.2rem">FPT Dedicated Inference on GPU Containers<br>Hành trình SDLC: từ 1 câu yêu cầu đến sản phẩm chạy thật</p>
+  <span class="badge badge-orange" style="margin-top:1rem">MVP · DEDICATED INFERENCE</span>
+  <div class="mono" style="position:absolute;bottom:56px;left:0;right:0;color:#5f7699;letter-spacing:3px;font-size:.95em">PLANNING → DESIGN → DEVELOPMENT → TESTING → DEPLOYMENT → LAUNCH</div>
+  <span class="slide-number">Slide 1 / 15</span>
+</section>
+<section class="slide slide--very-sparse" id="s2">
+  <div class="kicker">Workshop · VibeFlow in action</div>
+  <h2>Agenda</h2>
+  <ul>
+    <li><strong class="mono" style="color:var(--accent)">01</strong> · Bối cảnh — sản phẩm thật DDI</li>
+    <li><strong class="mono" style="color:var(--accent)">02</strong> · Cách làm — 6 pha SDLC × VibeFlow</li>
+    <li><strong class="mono" style="color:var(--accent)">03</strong> · Hành trình — artifact thật từng pha</li>
+    <li><strong class="mono" style="color:var(--accent)">04</strong> · Con số &amp; bài học</li>
+    <li><strong class="mono" style="color:var(--accent)">05</strong> · Demo live — preview &amp; vòng screenshot</li>
+  </ul>
+  <span class="slide-number">Slide 2 / 15</span>
+</section>
+
+<section class="slide slide--mid" id="s3">
+  <h2>DDI — sản phẩm thật, không phải demo</h2>
+  <div class="two-col">
+    <div>
+      <ul>
+        <li><strong>Always-on</strong> — endpoint riêng, không ngủ</li>
+        <li><strong>Reserved GPUs</strong> — H100 dành riêng, không chia sẻ</li>
+        <li><strong>No rate limits</strong> — cho traffic nghiêm túc</li>
+      </ul>
+      <div class="highlight-box">Model Catalog Admin — chủ đề dissect hôm nay — chỉ là <strong>một vòng lặp SDLC</strong> trong chuỗi dài đã làm với VibeFlow.</div>
+    </div>
+    <div class="mock">
+      <div class="m-head">FPT Dedicated Inference Console — My dedicated models</div>
+      <div class="m-cards">
+        <div class="m-card"><span>Endpoints</span><b>1</b></div>
+        <div class="m-card"><span>Active</span><b style="color:#177245">1</b></div>
+      </div>
+      <table>
+        <tr><th>Endpoint</th><th>Hardware</th><th>Status</th></tr>
+        <tr><td class="mono">gemma-4-26b-a4b-it</td><td>GPU-H100-1</td><td><span class="pill">Running</span></td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="flow-row" style="margin-top:1.6rem">
+    <div class="flow-node warm">Always-on</div>
+    <div class="flow-node accent">Reserved GPUs</div>
+    <div class="flow-node green">No rate limits</div>
+  </div>
+  <span class="slide-number">Slide 3 / 15</span>
+</section>
+
+<section class="slide slide--very-sparse" id="s4">
+  <h2>Cách làm — 6 pha, 1 cuộc hội thoại</h2>
+  <div class="flow-row">
+    <div class="flow-node accent">Plan</div><span class="flow-arrow">→</span>
+    <div class="flow-node accent">Design</div><span class="flow-arrow">→</span>
+    <div class="flow-node warm">Build</div><span class="flow-arrow">→</span>
+    <div class="flow-node warm">Test</div><span class="flow-arrow">→</span>
+    <div class="flow-node green">Deploy</div><span class="flow-arrow">→</span>
+    <div class="flow-node green">Launch</div>
+  </div>
+  <div class="flow-row">
+    <div class="flow-label">BA agent · BRD/SRS</div><span class="flow-arrow" style="opacity:0">→</span>
+    <div class="flow-label">SA · prototype · ADR</div><span class="flow-arrow" style="opacity:0">→</span>
+    <div class="flow-label">Dev agent · fullstack</div><span class="flow-arrow" style="opacity:0">→</span>
+    <div class="flow-label">e2e · chạy thật</div><span class="flow-arrow" style="opacity:0">→</span>
+    <div class="flow-label">preview compose</div><span class="flow-arrow" style="opacity:0">→</span>
+    <div class="flow-label">sản phẩm live</div>
+  </div>
+  <div class="accent-box"><strong>Human-in-the-loop:</strong> VibeFlow đề xuất &amp; thực thi — <strong>con người quyết định</strong> tại từng gate.</div>
+  <span class="slide-number">Slide 4 / 15</span>
+</section>
+<section class="slide slide--very-sparse" id="s5">
+  <h2>Plan — BRD từ một câu yêu cầu</h2>
+  <div class="accent-box mono" style="font-size:1.05em">“Tôi muốn dựng hệ thống admin để khai báo model catalog cho Dedicated Inference. Cho tôi 1 số option như feed từ HF về, tự khai báo bằng admin.”</div>
+  <div class="card-grid grid2" style="margin-top:1rem">
+    <div class="card">
+      <div class="card-title">VibeFlow (BA agent) trả về</div>
+      <p>BRD v1.1 · 13 FR · 4 phương án A–D</p>
+      <p class="dim">A: HF trực tiếp · B: mirror nội bộ · C: manual · <strong style="color:var(--accent2)">D: hybrid ✓</strong></p>
+    </div>
+    <div class="card">
+      <div class="card-title">5 câu hỏi mở → user chốt</div>
+      <p>Nguồn HF hay mirror? · Mấy cấp duyệt?</p>
+      <p>Model độc quyền? · Giá? · Auto-sync?</p>
+    </div>
+  </div>
+  <div class="highlight-box">→ Chốt <strong>phương án D — hybrid</strong>: HF nguồn chính + manual + batch (Phase 2).</div>
+  <span class="slide-number">Slide 5 / 15</span>
+</section>
+
+<section class="slide slide--sparse" id="s6">
+  <h2>Plan — 5 quyết định sản phẩm (lời user)</h2>
+  <div class="card-grid grid3">
+    <div class="card"><div class="card-title">Mirror nội bộ</div><p>“b” — pull weights về S3 nội, deploy từ mirror, checksum SHA-256</p></div>
+    <div class="card"><div class="card-title">1 cấp duyệt</div><p>Admin duyệt; quyền cấp theo role</p></div>
+    <div class="card"><div class="card-title">Proprietary tách riêng</div><p>catalog_type: public / proprietary</p></div>
+    <div class="card"><div class="card-title">Giá tự khai báo</div><p>USD/GPU/h theo từng hardware profile</p></div>
+    <div class="card"><div class="card-title">Auto-sync revision</div><p>Theo lịch, toggle từng entry</p></div>
+    <div class="card"><div class="card-title">hf_model_id bắt buộc</div><p>Kể cả model độc quyền: <span class="mono">fpt-internal/…</span></p></div>
+  </div>
+  <span class="slide-number">Slide 6 / 15</span>
+</section>
+
+<section class="slide slide--very-sparse" id="s7">
+  <h2>Design — SRS + khám phá tích hợp thật</h2>
+  <div class="two-col">
+    <div>
+      <ul>
+        <li>SRS: <strong>14 FR · 9 NFR · RTM</strong> · data dictionary</li>
+        <li>User cung cấp <strong>Postman collection</strong> BFF portal</li>
+        <li>Phân tích reuse / gap trước khi thiết kế</li>
+      </ul>
+    </div>
+    <div>
+      <table>
+        <tr><th>Reuse</th><th>Gap → admin lo</th></tr>
+        <tr><td>catalog CRUD, categories, hardware_profiles</td><td>approval, catalog_type, mirror, sync, audit</td></tr>
+      </table>
+      <div class="highlight-box">Admin = <strong>workflow orchestrator</strong>, publish idempotent sang BFF — không chờ đội BFF.</div>
+    </div>
+  </div>
+  <span class="slide-number">Slide 7 / 15</span>
+</section>
+
+<section class="slide slide--very-sparse" id="s8">
+  <h2>Design — prototype · stories · kiến trúc</h2>
+  <div class="card-grid grid3">
+    <div class="card"><div class="card-title">Prototype</div><p>7 màn hình M1–M7</p><p class="dim">role matrix · 10 edge cases · UAT checklist</p></div>
+    <div class="card"><div class="card-title">User stories</div><p>19 US · 12 epics</p><p class="dim">AC dạng Given-When-Then</p></div>
+    <div class="card"><div class="card-title">System design</div><p>5 ADR · 17 endpoints · DB 4 bảng</p><p class="dim">topology deploy · security · monitoring</p></div>
+  </div>
+  <div class="accent-box"><strong>Quality gate:</strong> review “đủ điều kiện dev chưa?” → <strong>Conditionally ready</strong> · 4 blockers B1–B4 · Sprint 0 gỡ — <em>review trước khi code</em>.</div>
+  <span class="slide-number">Slide 8 / 15</span>
+</section>
+
+<section class="slide slide--very-sparse" id="s9">
+  <h2>Build — dev agent thực thi</h2>
+  <div class="card-grid grid4">
+    <div class="card"><div class="card-title">DB</div><p>migration 015</p><p class="dim">4 bảng mc_* + seed</p></div>
+    <div class="card"><div class="card-title">Backend</div><p>6 module</p><p class="dim">store · hf · publish · mirror · routes · config</p></div>
+    <div class="card"><div class="card-title">Frontend</div><p>SPA vanilla JS</p><p class="dim">7 màn hình, theme khớp console</p></div>
+    <div class="card"><div class="card-title">Deploy</div><p>Caddy prod + preview</p><p class="dim">route /admin · Helm sẵn</p></div>
+  </div>
+  <div class="highlight-box"><strong>Reuse code hiện có</strong> (code graph): audit_log · byom processor (HF/S3) · keys RBAC — không phát minh lại.</div>
+  <span class="slide-number">Slide 9 / 15</span>
+</section>
+<section class="slide slide--very-sparse" id="s10">
+  <h2>Test — chạy thật, không chỉ viết</h2>
+  <div class="two-col">
+    <div style="text-align:center">
+      <div class="big-number">36</div>
+      <div class="big-label">e2e checks PASS</div>
+      <p class="dim" style="margin-top:1rem">PG + Redis thật (podman) · RBAC · workflow · mirror · categories · audit · HF fetch</p>
+    </div>
+    <div>
+      <table>
+        <tr><th>Bug tìm ra khi chạy</th><th>Fix</th></tr>
+        <tr><td>esc() FE vô hiệu (entity decode)</td><td>unicode escape</td></tr>
+        <tr><td>server crash: biến ngoài scope</td><td>sửa catch block</td></tr>
+        <tr><td>SQL 3 placeholder trùng $1</td><td>đánh số riêng</td></tr>
+        <tr><td>test không idempotent</td><td>run suffix</td></tr>
+      </table>
+    </div>
+  </div>
+  <span class="slide-number">Slide 10 / 15</span>
+</section>
+
+<section class="slide slide--mid" id="s11">
+  <h2>Deploy — preview &amp; live feedback loop</h2>
+  <div class="flow-row">
+    <div class="flow-node accent">Caddy :5173</div><span class="flow-arrow">→</span>
+    <div class="flow-node warm">Backend :3000</div><span class="flow-arrow">→</span>
+    <div class="flow-node green">PG · Redis</div>
+    <div class="flow-node">mirror worker</div>
+  </div>
+  <ul>
+    <li>User mở browser → <strong>chụp màn hình lỗi</strong> → fix trong phút</li>
+    <li>404 /admin → <span class="mono">handle_path</span> · modal trống → CSS <span class="mono">[hidden]</span></li>
+    <li>Key viewer dính → tách storage riêng · verify trả role</li>
+    <li><strong>Change request bằng hội thoại:</strong> “tôi là admin nên được approve” → đổi rule, test lại 36/36</li>
+  </ul>
+  <span class="slide-number">Slide 11 / 15</span>
+</section>
+
+<section class="slide slide--very-sparse" id="s12">
+  <h2>Kết quả — con số biết nói</h2>
+  <div class="card-grid grid4">
+    <div class="card" style="text-align:center"><div class="big-number">7</div><div class="big-label">docs SDLC</div></div>
+    <div class="card" style="text-align:center"><div class="big-number cy">14</div><div class="big-label">FR · 9 NFR</div></div>
+    <div class="card" style="text-align:center"><div class="big-number">19</div><div class="big-label">user stories</div></div>
+    <div class="card" style="text-align:center"><div class="big-number cy">7</div><div class="big-label">màn hình</div></div>
+    <div class="card" style="text-align:center"><div class="big-number cy">17</div><div class="big-label">endpoints</div></div>
+    <div class="card" style="text-align:center"><div class="big-number">4</div><div class="big-label">bảng DB</div></div>
+    <div class="card" style="text-align:center"><div class="big-number">36</div><div class="big-label">e2e pass</div></div>
+    <div class="card" style="text-align:center"><div class="big-number cy">8+</div><div class="big-label">bug đã fix</div></div>
+  </div>
+  <span class="slide-number">Slide 12 / 15</span>
+</section>
+<section class="slide slide--sparse" id="s13">
+  <h2>BPR — as-is vs to-be với VibeFlow</h2>
+  <table>
+    <tr><th>Pha</th><th>As-is (truyền thống)</th><th>To-be (VibeFlow)</th></tr>
+    <tr><td>Yêu cầu</td><td>Họp nhiều vòng, tài liệu phân tán</td><td>1 câu → BRD + options trong phiên</td></tr>
+    <tr><td>Thiết kế</td><td>Wireframe tay, chờ review</td><td>Prototype + stories + ADR liền mạch</td></tr>
+    <tr><td>Phát triển</td><td>Dev đọc spec, tự suy diễn</td><td>Dev agent bám đúng design, reuse code graph</td></tr>
+    <tr><td>Kiểm thử</td><td>Test sau code, bug muộn</td><td>e2e chạy thật mỗi vòng, bug ra ngay</td></tr>
+    <tr><td>Feedback</td><td>Email / ticket, vòng dài</td><td>Screenshot → fix trong phút</td></tr>
+  </table>
+  <div class="highlight-box">Một mạch hội thoại = một mạch SDLC. Không mất ngữ cảnh khi chuyển vai trò.</div>
+  <span class="slide-number">Slide 13 / 15</span>
+</section>
+
+<section class="slide slide--mid" id="s14">
+  <h2>4 bài học mang về</h2>
+  <div class="card-grid grid4">
+    <div class="card"><div class="card-title">01 · Chốt ở gate</div><p>Quyết định sản phẩm phải của con người — tại từng gate, đừng để trôi.</p></div>
+    <div class="card"><div class="card-title">02 · Tích hợp thật sớm</div><p>Postman / URL thật vào cuộc → thiết kế không bay bổng.</p></div>
+    <div class="card"><div class="card-title">03 · Chạy để test</div><p>Test không chạy thật = chưa test. Bug thật rẻ hơn bug prod.</p></div>
+    <div class="card"><div class="card-title">04 · Preview + screenshot</div><p>Vòng feedback nhanh nhất: user bấm, chụp, gửi — agent fix.</p></div>
+  </div>
+  <div class="accent-box">Áp dụng cho sản phẩm của bạn: bắt đầu bằng <strong>một câu yêu cầu</strong> — phần còn lại là kỷ luật SDLC.</div>
+  <span class="slide-number">Slide 14 / 15</span>
+</section>
+<section class="slide cover" id="s15">
+  <div class="kicker">VibeFlow in action · FPT Dedicated Inference</div>
+  <h1>Launch <span class="or">by vibe.</span></h1>
+  <p style="color:#9fb3cc;font-size:1.5em;margin-top:1.2rem">Q&amp;A</p>
+  <div class="mono" style="position:absolute;bottom:56px;left:0;right:0;color:#5f7699;letter-spacing:2px;font-size:1em">vibeflow.fptconsulting.co.jp</div>
+  <span class="slide-number">Slide 15 / 15</span>
+</section>
+</div>
+<script>
+function toggleTheme(){
+  const h=document.documentElement,b=document.querySelector('.theme-toggle'),d=h.getAttribute('data-theme')==='dark';
+  h.setAttribute('data-theme',d?'light':'dark');b.textContent=d?'🌙':'☀️';
+}
+if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches){
+  document.documentElement.setAttribute('data-theme','dark');
+  document.querySelector('.theme-toggle').textContent='☀️';
+}
+
+// Inject FPT brand mark (default) into every slide — see "Brand Logo" section for SVG constant
+const BRAND_SVG='<svg class="brand-mark" viewBox="0 0 34 21" xmlns="http://www.w3.org/2000/svg"><path d="M6.68439 3.50089C4.75756 3.50089 3.12259 4.75793 2.55021 6.5013C2.53888 6.54111 2.52471 6.58093 2.51338 6.6179L2.41703 6.99331L0 17.499H6.08934C7.90849 17.499 9.45845 16.3415 10.0478 14.7204L10.2774 13.7193L12.6292 3.49805H6.68439V3.50089Z" fill="#08509F"/><path d="M18.1691 0C16.18 0 14.5025 1.34236 13.984 3.17389C13.9443 3.3104 13.9131 3.44976 13.8876 3.59196L9.88379 21H15.8286C17.866 21 19.5746 19.5951 20.0506 17.6981H20.0535L24.1196 0H18.1691Z" fill="#F27123"/><path d="M28.0555 3.50098C26.1967 3.50098 24.6099 4.6727 23.9865 6.31937C23.9553 6.40469 23.8448 6.75165 23.8448 6.75165L21.3711 17.5019H27.3159C29.3589 17.5019 31.0732 16.0885 31.5408 14.183L33.9975 3.50382H28.0555V3.50098Z" fill="#51B748"/><path d="M4.03217 7.37699C3.69781 7.6557 3.48246 7.99413 3.41728 8.26431L2.15918 13.9637H2.23002C2.62105 13.9637 2.98942 13.8243 3.32378 13.5484C3.66097 13.2726 3.87349 12.9341 3.95566 12.5445L4.27869 11.0969H6.97908C7.37011 11.0969 7.74131 10.9576 8.07851 10.6817C8.4157 10.4058 8.63105 10.0646 8.71606 9.67208L8.73023 9.60098H4.61305L4.86524 8.46055H8.76706C9.1581 8.46055 9.52646 8.32119 9.86366 8.04817C10.198 7.7723 10.4049 7.42818 10.4955 7.03855L10.5125 6.96745H5.12593C4.73489 6.96176 4.36653 7.10112 4.03217 7.37699Z" fill="white"/><path d="M31.52 7.30069C31.3047 7.08455 31.0213 6.97363 30.6813 6.97363H25.2975L25.289 7.02198C25.2691 7.12721 25.2578 7.22675 25.2578 7.3206C25.2578 7.6505 25.3683 7.92637 25.5837 8.14535C25.8019 8.3615 26.0824 8.47241 26.4252 8.47241H27.587L26.4196 13.9642H26.4932C26.8843 13.9642 27.2498 13.8248 27.5842 13.5518C27.9185 13.2759 28.1254 12.9375 28.2076 12.545L29.0718 8.46957H31.809L31.8175 8.42122C31.8374 8.32168 31.8487 8.21645 31.8487 8.11407C31.8459 7.78986 31.7354 7.51683 31.52 7.30069Z" fill="white"/><path d="M19.7101 6.96223H16.0718L16.0747 6.95654H14.5785L13.0938 13.9641H13.1646C13.5556 13.9641 13.924 13.8248 14.2555 13.5489C14.587 13.273 14.7967 12.9346 14.8789 12.545L15.1821 11.1059H18.8544C19.2454 11.1059 19.611 10.9666 19.9453 10.6935C20.2768 10.4205 20.4894 10.0792 20.5772 9.68108L20.8521 8.41551C20.8719 8.31597 20.8832 8.21359 20.8832 8.10836C20.8832 7.78414 20.7727 7.51112 20.5517 7.29213C20.3364 7.07315 20.0502 6.96223 19.7101 6.96223ZM15.7488 8.46101H19.3531L19.1038 9.60714H15.4995L15.7488 8.46101Z" fill="white"/></svg>';
+document.querySelectorAll('.slide').forEach(s=>{if(!s.querySelector('.brand-mark'))s.insertAdjacentHTML('beforeend',BRAND_SVG);});
+
+// Wrap each slide for viewport scaling
+document.querySelectorAll('.slide').forEach(s=>{
+  const w=document.createElement('div');w.className='slide-wrap';
+  s.parentNode.insertBefore(w,s);w.appendChild(s);
+});
+
+// Build thumbnail sidebar (cloned slides at 0.1x)
+const thumbNav=document.getElementById('thumb-nav');
+const slides=document.querySelectorAll('.slide');
+slides.forEach((s,i)=>{
+  const t=document.createElement('div');t.className='thumb';t.dataset.idx=i;
+  t.innerHTML='<span class="thumb-num">'+(i+1)+'</span>';
+  const inner=document.createElement('div');inner.className='thumb-inner';
+  inner.appendChild(s.cloneNode(true));
+  t.appendChild(inner);
+  t.onclick=()=>slides[i].scrollIntoView({behavior:'smooth',block:'start'});
+  thumbNav.appendChild(t);
+});
+const thumbs=thumbNav.querySelectorAll('.thumb');
+function toggleThumbs(){document.body.classList.toggle('thumbs-open');thumbNav.classList.toggle('open');setTimeout(applyScale,0);}
+function highlightThumb(){
+  const i=currentIndex();thumbs.forEach((t,j)=>t.classList.toggle('active',j===i));
+  const a=thumbs[i];if(a&&thumbNav.classList.contains('open')){
+    const r=a.getBoundingClientRect(),nr=thumbNav.getBoundingClientRect();
+    if(r.top<nr.top||r.bottom>nr.bottom)a.scrollIntoView({block:'nearest'});
+  }
+}
+
+function applyScale(){
+  const navH=54,sideW=document.body.classList.contains('thumbs-open')?220:0;
+  const vw=window.innerWidth-sideW,vh=window.innerHeight-navH;
+  const scale=Math.min(vw/1920,vh/1080,1);
+  document.documentElement.style.setProperty('--scale',scale);
+  document.documentElement.style.setProperty('--scaled-w',(1920*scale)+'px');
+  document.documentElement.style.setProperty('--scaled-h',(1080*scale)+'px');
+}
+applyScale();window.addEventListener('resize',applyScale);
+
+function currentIndex(){
+  const y=window.scrollY+window.innerHeight/2;
+  for(let i=0;i<slides.length;i++){
+    const r=slides[i].getBoundingClientRect();
+    if(r.top+window.scrollY<=y&&r.bottom+window.scrollY>=y)return i;
+  }
+  return 0;
+}
+function updateNav(){const p=document.getElementById('nav-pos');if(p)p.textContent=(currentIndex()+1)+' / '+slides.length;highlightThumb();}
+function prevSlide(){const i=currentIndex();if(i>0)slides[i-1].scrollIntoView({behavior:'smooth'});}
+function nextSlide(){const i=currentIndex();if(i<slides.length-1)slides[i+1].scrollIntoView({behavior:'smooth'});}
+window.addEventListener('scroll',updateNav);
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='ArrowDown')nextSlide();if(e.key==='ArrowLeft'||e.key==='ArrowUp')prevSlide();});
+updateNav();
+</script>
+</body>
+</html>
