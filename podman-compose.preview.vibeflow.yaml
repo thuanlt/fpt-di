@@ -4,6 +4,9 @@ services:
     ports:
       - "5173:5173"
     command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    environment:
+      - NO_PROXY=localhost,127.0.0.1,::1,backend,redis,postgres,vllm-adapter,.svc,.cluster.local
+      - no_proxy=localhost,127.0.0.1,::1,backend,redis,postgres,vllm-adapter,.svc,.cluster.local
     volumes:
       - ./Caddyfile.preview.vibeflow:/etc/caddy/Caddyfile:ro
       - ./partner-console:/srv:ro
