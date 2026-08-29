@@ -23,8 +23,8 @@
   # Model Catalog Admin — static UI (khớp cả /admin và /admin/...)
   handle_path /admin* {
     root * /srv/admin-console
-    @htmlAdmin path / *.html
-    header @htmlAdmin Cache-Control "no-store, max-age=0"
+    @staticAdmin path / *.html *.css *.js
+    header @staticAdmin Cache-Control "no-store, max-age=0"
     try_files {path} /index.html
     file_server
   }

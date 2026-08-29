@@ -3,6 +3,7 @@
 
 const M1 = {
   state: { catalogType: "public", status: "", category: "", query: "", page: 1, limit: 20, total: 0, role: "admin" },
+  sel: new Map(),
 
   async render(view) {
     view.innerHTML = `
@@ -31,6 +32,13 @@ const M1 = {
         <select id="fCategory"><option value="">Category: Tất cả</option></select>
         <input type="search" id="fQuery" placeholder="Tìm theo id / tên / hf_model_id…" />
         <button class="btn btn-ghost" id="fReset">Xóa bộ lọc</button>
+      </div>
+      <div id="bulkBar" class="bulkbar" hidden>
+        <span class="cnt" id="bulkCnt"></span>
+        <span class="spacer"></span>
+        <button class="btn btn-sm" id="bulkSubmit" hidden>Submit</button>
+        <button class="btn btn-sm btn-primary" id="bulkApprove" hidden>Approve</button>
+        <button class="btn btn-sm btn-ghost" id="bulkClear">Bỏ chọn</button>
       </div>
       <div id="listBody"><div class="loading-screen"><div class="spinner"></div></div></div>
     `;
@@ -68,6 +76,9 @@ const M1 = {
     document.getElementById("btnImport").onclick = () => document.getElementById("importFile").click();
     document.getElementById("importFile").onchange = (e) => this.importFile(e.target.files[0]);
     document.getElementById("btnExport").onclick = () => this.exportJson();
+    document.getElementById("bulkClear").onclick = () => { this.sel.clear(); this.load(); };
+    document.getElementById("bulkSubmit").onclick = () => this.bulk("submit");
+    document.getElementById("bulkApprove").onclick = () => this.bulk("approve");
     this.load();
   },
 
@@ -160,11 +171,13 @@ const M1 = {
       <div class="table-wrap">
         <table>
           <thead><tr>
+            <th class="sel-col"><input type="checkbox" id="selAll" aria-label="Chọn tất cả trang này" /></th>
             <th>ID</th><th>Display name</th><th>Status</th><th>Weight</th><th>Price</th><th>Updated</th><th></th>
           </tr></thead>
           <tbody>
             ${rows.map((e) => `
               <tr>
+                <td class="sel-col"><input type="checkbox" data-sel="${esc(e.id)}" data-status="${esc(e.status)}" ${this.sel.has(e.id) ? "checked" : ""} aria-label="Chọn ${esc(e.id)}" /></td>
                 <td class="mono"><a href="#/entry/${esc(e.id)}">${esc(e.id)}</a></td>
                 <td>${esc(e.displayName)}<div class="dim mono">${esc(e.hfModelId)}</div></td>
                 <td>${badge(e.status, STATUS_LABELS[e.status])}</td>
@@ -188,6 +201,70 @@ const M1 = {
     body.querySelectorAll("[data-act=menu]").forEach((b) => {
       b.onclick = () => this.menu(b.dataset.id, b.dataset.status, b);
     });
+    const pageCbs = [...body.querySelectorAll("[data-sel]")];
+    pageCbs.forEach((cb) => {
+      cb.onchange = () => {
+        if (cb.checked) this.sel.set(cb.dataset.sel, cb.dataset.status);
+        else this.sel.delete(cb.dataset.sel);
+        this.updateBulkBar();
+      };
+    });
+    const selAll = document.getElementById("selAll");
+    if (selAll && pageCbs.length) {
+      selAll.checked = pageCbs.every((c) => c.checked);
+      selAll.onchange = () => pageCbs.forEach((c) => {
+        if (c.checked !== selAll.checked) { c.checked = selAll.checked; c.onchange(); }
+      });
+    }
+    this.updateBulkBar();
+  },
+
+  updateBulkBar() {
+    const bar = document.getElementById("bulkBar");
+    if (!bar) return;
+    const n = this.sel.size;
+    bar.hidden = n === 0;
+    if (!n) return;
+    let drafts = 0, pend = 0;
+    this.sel.forEach((st) => { if (st === "draft") drafts++; else if (st === "pending_review") pend++; });
+    document.getElementById("bulkCnt").textContent = `Đã chọn ${n} model`;
+    const bs = document.getElementById("bulkSubmit");
+    const ba = document.getElementById("bulkApprove");
+    bs.hidden = !(this.state.role === "admin" && drafts > 0);
+    bs.textContent = `Submit (${drafts})`;
+    ba.hidden = !(this.state.role !== "viewer" && pend > 0);
+    ba.textContent = `Approve (${pend})`;
+  },
+
+  async bulk(act) {
+    const ids = [...this.sel.entries()]
+      .filter(([, st]) => (act === "submit" ? st === "draft" : st === "pending_review"))
+      .map(([id]) => id);
+    if (!ids.length) return;
+    const label = act === "submit" ? "Submit" : "Approve";
+    const ok = await confirmModal(
+      `${label} ${ids.length} model?`,
+      act === "submit"
+        ? "Các entry draft được chọn sẽ chuyển sang pending_review."
+        : "Các entry pending_review được chọn sẽ chuyển sang active, publish sang BFF và tạo mirror job.",
+      { confirmLabel: label }
+    );
+    if (!ok) return;
+    let done = 0, fail = 0, firstErr = "";
+    for (const id of ids) {
+      try {
+        await api("POST", `/admin/catalog/entries/${encodeURIComponent(id)}/${act}`);
+        done++;
+        this.sel.delete(id);
+      } catch (e) {
+        fail++;
+        if (!firstErr) firstErr = `${id}: ${e.message}`;
+      }
+    }
+    toast(`${label}: ${done} ok${fail ? `, ${fail} lỗi` : ""}.`, fail ? "error" : "ok");
+    if (firstErr) toast(firstErr, "error");
+    this.updateBulkBar();
+    this.load();
   },
 
   async menu(id, status, anchor) {

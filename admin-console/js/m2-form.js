@@ -141,8 +141,7 @@ const M2 = {
   addBmRow(data) {
     const host = document.getElementById("bmRows");
     const row = document.createElement("div");
-    row.className = "dyn-row";
-    row.style.gridTemplateColumns = "2fr 1fr 1fr 1fr auto";
+    row.className = "dyn-row dyn-row--bm";
     row.innerHTML = `
       <div class="field"><label>Benchmark</label><input class="bm-name" placeholder="SWE-bench Verified" value="${esc(data?.benchmark_name || "")}" /></div>
       <div class="field"><label>Score</label><input class="bm-score" type="number" step="0.1" value="${data?.score ?? ""}" /></div>
