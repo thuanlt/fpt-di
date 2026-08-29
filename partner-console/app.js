@@ -576,6 +576,18 @@ async function loadAllRealData() {
       console.warn(`[data] load "${field}" lỗi:`, e.message);
     }
   }));
+  // DDI Model Catalog — merge model đã approve (active) từ admin catalog vào catalog
+  try {
+    const r = await fetchJson("/v1/data/ddi_catalog");
+    const ddi = (r.data || []).map((m) => ({ ...m, ddi: true }));
+    if (ddi.length) {
+      const existing = new Set(DATA.catalog.map((m) => String(m.model).toLowerCase()));
+      const fresh = ddi.filter((m) => !existing.has(String(m.model).toLowerCase()));
+      if (fresh.length) DATA.catalog = [...fresh, ...DATA.catalog];
+    }
+  } catch (e) {
+    console.warn("[data] load ddi_catalog lỗi:", e.message);
+  }
 }
 
 
@@ -1713,18 +1725,20 @@ function renderCatalog() {
 
   $("#catalogGrid").innerHTML = rows.map((m) => {
     const newBadge = m.status === "new" ? '<span class="new-badge">✦ New</span>' : "";
+    const ddiBadge = m.ddi ? '<span class="new-badge" style="background:rgba(59,130,246,.15);color:#3b82f6;border-color:rgba(59,130,246,.4)">⚡ Dedicated</span>' : "";
     const tags = modalTags(m);
     const sizeTag = m.size && m.size !== "—" ? `<span class="model-tag spec">${esc(m.size)}</span>` : "";
     const ctxTag = m.ctx && m.ctx !== "—" ? `<span class="model-tag spec">${esc(m.ctx)} ctx</span>` : "";
+    const priceTag = m.price ? `<span class="model-tag spec">$${m.price}/GPU·h</span>` : "";
     const color = vendorColor(m.vendor);
     return `<div class="card model-card">
       <div class="model-top">
         <span class="model-logo" style="background:${color}">${esc(vendorInitial(m.vendor))}</span>
-        <div class="model-title"><span class="model-name">${esc(m.model)}</span>${newBadge}</div>
+        <div class="model-title"><span class="model-name">${esc(m.model)}</span>${newBadge}${ddiBadge}</div>
       </div>
-      <div class="model-id">${esc(modelSlug(m.vendor, m.model))}</div>
+      <div class="model-id">${esc(m.hfId || modelSlug(m.vendor, m.model))}</div>
       <p class="model-desc">${esc(m.note)}</p>
-      <div class="model-tags">${tags.join("")}${sizeTag}${ctxTag}</div>
+      <div class="model-tags">${tags.join("")}${sizeTag}${ctxTag}${priceTag}</div>
       <div class="model-foot">
         <div class="model-stat"><b>${esc(m.size === "—" ? "—" : m.size)}</b><span>size</span></div>
         <div class="model-stat"><b>${esc(m.ctx === "—" ? "—" : m.ctx)}</b><span>context</span></div>

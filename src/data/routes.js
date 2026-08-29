@@ -143,6 +143,41 @@ router.get("/data/cli/_/full", async (req, res) => {
   }
 });
 
+// DDI Model Catalog — model đã approve (active) từ admin catalog (mc_entries).
+// Partner console fetch endpoint này để hiện động model dedicated inference.
+router.get("/data/ddi_catalog", async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT id, display_name, hf_model_id, parameters_display, context_length_display,
+              short_description, badge_code, from_price, categories
+       FROM mc_entries
+       WHERE status_code = 'active' AND catalog_type = 'public'
+       ORDER BY sort_order ASC, updated_at DESC`
+    );
+    const data = rows.map((r) => {
+      const cats = Array.isArray(r.categories) ? r.categories : [];
+      const modal = cats.some((c) => ["video-generation", "image-to-video"].includes(c)) ? "video"
+        : cats.some((c) => ["image-text", "vision"].includes(c)) ? "text+vision"
+        : "text";
+      return {
+        model: r.display_name,
+        vendor: String(r.hf_model_id || "").split("/")[0] || "Unknown",
+        ctx: r.context_length_display || "—",
+        modal,
+        size: r.parameters_display || "—",
+        status: "new",
+        note: r.short_description || "",
+        price: r.from_price !== null ? Number(r.from_price) : null,
+        hfId: r.hf_model_id,
+        ddi: true,
+      };
+    });
+    res.json({ count: data.length, data });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.get("/data/:table", async (req, res) => {
   try {
     const name = req.params.table;

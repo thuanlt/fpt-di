@@ -29,9 +29,9 @@
     file_server
   }
 
-  handle {
-    @html path / *.html
-    header @html Cache-Control "no-store, max-age=0"
+handle {
+    @static path / *.html *.js *.css
+    header @static Cache-Control "no-store, max-age=0"
     try_files {path} /index.html
     file_server
   }

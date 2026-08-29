@@ -114,6 +114,119 @@ router.post("/admin/catalog/entries", async (req, res) => {
   }
 });
 
+// ── Import helpers ─────────────────────────────────────────────
+
+// normalizeEntry — chấp nhận cả schema nội bộ (camelCase) lẫn payload BFF
+// (snake_case, ddi.model-catalog-create). hardware_profiles/benchmarks giữ nguyên.
+function normalizeEntry(raw) {
+  const e = raw || {};
+  return {
+    id: e.id,
+    hfModelId: e.hfModelId ?? e.hf_model_id,
+    displayName: e.displayName ?? e.display_name,
+    shortDescription: e.shortDescription ?? e.short_description ?? null,
+    parametersDisplay: e.parametersDisplay ?? e.parameters_display ?? null,
+    contextLengthDisplay: e.contextLengthDisplay ?? e.context_length_display ?? null,
+    license: e.license,
+    badgeCode: e.badgeCode ?? e.badge_code ?? null,
+    catalogType: e.catalogType ?? e.catalog_type ?? "public",
+    sortOrder: e.sortOrder ?? e.sort_order ?? 0,
+    fromPrice: e.fromPrice ?? e.from_price ?? null,
+    categories: e.categories ?? [],
+    benchmarks: e.benchmarks ?? [],
+    hardwareProfiles: e.hardwareProfiles ?? e.hardware_profiles ?? [],
+    revision: e.revision ?? null,
+  };
+}
+
+// extractFromMarkdown — lấy payload JSON từ code block `curl ... --data '{...}'`
+function extractFromMarkdown(text) {
+  const out = [];
+  const re = /--data\s+'([\s\S]*?)'/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    try {
+      const o = JSON.parse(m[1].trim());
+      out.push(o.payload || o);
+    } catch (_) { /* bỏ qua block không phải JSON */ }
+  }
+  return out;
+}
+
+// parseImportBody — trả { entries, error } từ body import
+function parseImportBody(body) {
+  body = body || {};
+  let list = null;
+  if (Array.isArray(body.entries)) list = body.entries;
+  else if (Array.isArray(body)) list = body;
+  else if (typeof body.content === "string") {
+    const fmt = String(body.format || "auto").toLowerCase();
+    const text = body.content;
+    if (fmt === "md" || fmt === "markdown") {
+      list = extractFromMarkdown(text);
+    } else {
+      try {
+        const o = JSON.parse(text);
+        list = Array.isArray(o) ? o : (o && Array.isArray(o.entries)) ? o.entries : (o && o.payload) ? [o.payload] : null;
+      } catch (_) {
+        if (fmt === "json") return { error: "file không phải JSON hợp lệ" };
+        list = extractFromMarkdown(text); // auto: JSON fail → thử markdown
+      }
+    }
+  }
+  if (!Array.isArray(list) || !list.length) {
+    return { error: "không tìm thấy entry nào — file phải là JSON (mảng / {entries} / {payload}) hoặc Markdown chứa payload curl" };
+  }
+  return { entries: list.map(normalizeEntry) };
+}
+
+// POST /admin/catalog/import — import entries từ file JSON/MD (tạo draft, tối đa 50/lần)
+// Body: { entries: [...] }  hoặc  { content: "<nội dung file>", format: "json"|"md"|"auto", dryRun?: true }
+router.post("/admin/catalog/import", async (req, res) => {
+  try {
+    const { entries, error } = parseImportBody(req.body);
+    if (error) return httpError(res, 400, "VALIDATION_FAILED", error);
+    if (entries.length > 50) return httpError(res, 400, "TOO_MANY", "tối đa 50 entry mỗi lần import");
+
+    const dryRun = req.body && req.body.dryRun === true;
+    const created = [], skipped = [], failed = [];
+    for (const e of entries) {
+      const errors = validateEntry(e);
+      if (errors.length) { failed.push({ id: e.id || "?", errors }); continue; }
+      const existing = await store.getEntry(e.id);
+      if (existing) { skipped.push({ id: e.id, reason: "đã tồn tại" }); continue; }
+      if (dryRun) { created.push({ id: e.id, displayName: e.displayName }); continue; }
+      try {
+        const entry = await store.createEntry(e, actorOf(req));
+        created.push({ id: entry.id, displayName: entry.displayName });
+      } catch (err) {
+        if (err.code === "23505") skipped.push({ id: e.id, reason: "đã tồn tại" });
+        else failed.push({ id: e.id || "?", errors: [err.message] });
+      }
+    }
+    res.json({ ok: true, dryRun, data: { total: entries.length, created: created.length, skipped: skipped.length, failed: failed.length, created, skipped, failed } });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: { code: "INTERNAL", message: e.message } });
+  }
+});
+
+// GET /admin/catalog/export — export catalog ra JSON (theo tab catalog_type + status hiện tại)
+router.get("/admin/catalog/export", async (req, res) => {
+  try {
+    const { catalog_type, status } = req.query || {};
+    const all = [];
+    const PAGE = 200;
+    for (let off = 0; off < 1000; off += PAGE) {
+      const page = await store.listEntries({ catalogType: catalog_type, status, limit: PAGE, offset: off });
+      all.push(...page);
+      if (page.length < PAGE) break;
+    }
+    res.json({ ok: true, count: all.length, data: all });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: { code: "INTERNAL", message: e.message } });
+  }
+});
+
 // PUT /admin/catalog/entries/:id — update (draft/inactive) (FR-MC-006)
 router.put("/admin/catalog/entries/:id", async (req, res) => {
   try {

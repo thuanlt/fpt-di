@@ -9,9 +9,12 @@ const M1 = {
       <div class="page-head">
         <div><h1>Model Catalog</h1><div class="sub">Khai báo & quản lý model cho Dedicated Inference</div></div>
         <div class="btn-row">
+          <button class="btn btn-ghost" id="btnImport" ${this.state.role === "admin" ? "" : "hidden"}>⇪ Import JSON/MD</button>
+          <button class="btn btn-ghost" id="btnExport">⇩ Export JSON</button>
           <a class="btn" href="#/new?source=hf">+ Add Model (HF)</a>
           <a class="btn btn-primary" href="#/new?source=manual">+ Add Model (Manual)</a>
         </div>
+        <input type="file" id="importFile" accept=".json,.md,application/json,text/markdown" hidden />
       </div>
       <div class="tabs" id="catTabs">
         <button data-ct="public" class="active">Public Catalog</button>
@@ -62,7 +65,71 @@ const M1 = {
       fs.value = ""; fc.value = ""; document.getElementById("fQuery").value = "";
       this.load();
     };
+    document.getElementById("btnImport").onclick = () => document.getElementById("importFile").click();
+    document.getElementById("importFile").onchange = (e) => this.importFile(e.target.files[0]);
+    document.getElementById("btnExport").onclick = () => this.exportJson();
     this.load();
+  },
+
+  async importFile(file) {
+    const input = document.getElementById("importFile");
+    input.value = "";
+    if (!file) return;
+    const format = /\.md$/i.test(file.name) ? "md" : "json";
+    let text;
+    try {
+      text = await file.text();
+    } catch (_) {
+      toast("Không đọc được file.", "error");
+      return;
+    }
+    let preview;
+    try {
+      const r = await api("POST", "/admin/catalog/import", { content: text, format, dryRun: true });
+      preview = r.data;
+    } catch (e) {
+      toast(e.message, "error");
+      return;
+    }
+    if (!preview.created && !preview.skipped) {
+      toast("Không có entry hợp lệ nào trong file.", "error");
+      return;
+    }
+    const ok = await confirmModal(
+      `Import ${preview.total} model?`,
+      `Sẽ tạo ${preview.created} entry mới (draft), bỏ qua ${preview.skipped} trùng id${preview.failed ? `, ${preview.failed} lỗi validate` : ""}. Entry trùng id không ghi đè. Sau import cần Submit → Approve để model lên active.`
+    );
+    if (!ok) return;
+    try {
+      const r = await api("POST", "/admin/catalog/import", { content: text, format });
+      const d = r.data;
+      toast(`Import xong: ${d.created} tạo mới, ${d.skipped} bỏ qua, ${d.failed} lỗi.`, d.failed ? "error" : "ok");
+      if (d.failed && d.failed.length) {
+        const detail = d.failed.slice(0, 5).map((f) => `${f.id}: ${(f.errors || []).join("; ")}`).join(" | ");
+        toast("Lỗi import — " + detail, "error");
+      }
+      this.load();
+    } catch (e) {
+      toast(e.message, "error");
+    }
+  },
+
+  async exportJson() {
+    try {
+      const r = await api("GET", `/admin/catalog/export?catalog_type=${this.state.catalogType}`);
+      const blob = new Blob([JSON.stringify(r.data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `model-catalog-${this.state.catalogType}-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast(`Đã export ${r.count} model (${this.state.catalogType}).`, "ok");
+    } catch (e) {
+      toast(e.message, "error");
+    }
   },
 
   async load() {
