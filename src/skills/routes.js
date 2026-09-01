@@ -20,6 +20,7 @@ const SKILL_REGISTRY = [
   { name: "fpt-ddi-cost-watch", file: "fpt-ddi-cost-watch.yaml" },
   { name: "fpt-ddi-capacity-planner", file: "fpt-ddi-capacity-planner.yaml" },
   { name: "fpt-ddi-experiment-runner", file: "fpt-ddi-experiment-runner.yaml" },
+  { name: "fpt-ddi-qc-autotest", file: "fpt-ddi-qc-autotest.yaml" },
 ];
 
 const runs = new Map();

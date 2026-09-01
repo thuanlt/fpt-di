@@ -37,6 +37,8 @@ function rowToEntry(r) {
     mirrorPath: r.mirror_path,
     mirrorChecksum: r.mirror_checksum,
     syncEnabled: r.sync_enabled,
+    hfLastCheckedAt: r.hf_last_checked_at,
+    hfDiscovered: r.hf_discovered,
     version: r.version,
     publishedAt: r.published_at,
     createdBy: r.created_by,
@@ -55,8 +57,8 @@ async function createEntry(entry, actor) {
        id, catalog_type, status_code, hf_model_id, revision, display_name,
        short_description, parameters_display, context_length_display, license,
        badge_code, sort_order, from_price, categories, benchmarks, hardware_profiles,
-       weight_status, sync_enabled, created_by
-     ) VALUES ($1,$2,'draft',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'not_mirrored',$16,$17)
+       weight_status, sync_enabled, hf_discovered, created_by
+     ) VALUES ($1,$2,'draft',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'not_mirrored',$16,$17,$18)
      RETURNING *`,
     [
       id,
@@ -75,6 +77,7 @@ async function createEntry(entry, actor) {
       JSON.stringify(entry.benchmarks || []),
       JSON.stringify(entry.hardwareProfiles || []),
       entry.syncEnabled !== false,
+      entry.hfDiscovered === true,
       actor || "system",
     ]
   );
@@ -349,6 +352,64 @@ async function setWeightStatus(id, weightStatus, extra = {}) {
   return rows.length ? rowToEntry(rows[0]) : null;
 }
 
+// ── HF Auto-Sync ────────────────────────────────────────────────
+
+async function listEntriesForSync() {
+  const { rows } = await db.query(
+    `SELECT * FROM mc_entries WHERE status_code = 'active' AND sync_enabled = TRUE`
+  );
+  return rows.map(rowToEntry);
+}
+
+async function listHfIds() {
+  const { rows } = await db.query(`SELECT hf_model_id FROM mc_entries`);
+  return rows.map((r) => r.hf_model_id);
+}
+
+async function createPendingUpdate(entryId, oldRev, newRev) {
+  const { rows } = await db.query(
+    `SELECT 1 FROM mc_pending_updates WHERE entry_id = $1 AND status = 'pending' AND new_revision = $2`,
+    [entryId, newRev]
+  );
+  if (rows.length) return null; // idempotent — đã có đề xuất pending trùng
+  const id = genId("mu");
+  await db.query(
+    `INSERT INTO mc_pending_updates (id, entry_id, old_revision, new_revision) VALUES ($1,$2,$3,$4)`,
+    [id, entryId, oldRev, newRev]
+  );
+  await audit.record({ actor: "hf-sync", action: "mc.sync.detect", entityId: entryId, entityType: "mc_entry", meta: { updateId: id, from: oldRev, to: newRev } });
+  return id;
+}
+
+async function recordSyncRun({ discovered = 0, newRevisions = 0, errors = 0, detail = [] } = {}) {
+  const id = genId("sr");
+  const { rows } = await db.query(
+    `INSERT INTO mc_sync_runs (id, started_at, finished_at, discovered, new_revisions, errors, detail)
+     VALUES ($1, now(), now(), $2, $3, $4, $5) RETURNING *`,
+    [id, discovered, newRevisions, errors, JSON.stringify(detail)]
+  );
+  return rows[0];
+}
+
+async function listSyncRuns(limit = 50) {
+  const { rows } = await db.query(
+    `SELECT * FROM mc_sync_runs ORDER BY started_at DESC LIMIT ${Math.min(parseInt(limit, 10) || 50, 200)}`
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    startedAt: r.started_at,
+    finishedAt: r.finished_at,
+    discovered: r.discovered,
+    newRevisions: r.new_revisions,
+    errors: r.errors,
+    detail: r.detail || [],
+  }));
+}
+
+async function markHfChecked(id) {
+  await db.query(`UPDATE mc_entries SET hf_last_checked_at = now() WHERE id = $1`, [id]);
+}
+
 // ── History (audit theo entry) ─────────────────────────────────
 
 async function entryHistory(id, limit = 100) {
@@ -368,4 +429,5 @@ module.exports = {
   createMirrorJob, listMirrorJobs, updateMirrorJob, claimNextMirrorJob, activeMirrorJobCount,
   listPendingUpdates, decidePendingUpdate,
   setWeightStatus, entryHistory, markPublished,
+  listEntriesForSync, listHfIds, createPendingUpdate, recordSyncRun, listSyncRuns, markHfChecked,
 };

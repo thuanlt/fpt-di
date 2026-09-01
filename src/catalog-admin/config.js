@@ -37,6 +37,20 @@ const cfg = {
   worker: {
     enabled: process.env.MC_WORKER_ENABLED !== "false",
   },
+  // HF Auto-Sync — tự động fetch model mới + kiểm tra revision theo định kỳ
+  hfsync: {
+    enabled: process.env.MC_HF_SYNC_ENABLED !== "false",
+    pollIntervalMs: parseInt(process.env.MC_HF_SYNC_POLL_MS || String(6 * 3600 * 1000), 10),
+    discoverLimit: parseInt(process.env.MC_HF_SYNC_DISCOVER_LIMIT || "20", 10),
+    discoverSort: process.env.MC_HF_SYNC_DISCOVER_SORT || "trendingScore",
+    revisionCheckEnabled: process.env.MC_HF_SYNC_REVCHECK !== "false",
+    minAgeHours: parseInt(process.env.MC_HF_SYNC_MIN_AGE_HOURS || "0", 10),
+    // Default hardware profile + giá cho model discover (HF không trả info này)
+    defaultGpu: process.env.MC_HF_SYNC_DEFAULT_GPU || "h100",
+    defaultGpuPriceMicros: parseInt(process.env.MC_HF_SYNC_DEFAULT_GPU_PRICE_MICROS || "3700000", 10), // $3.70/GPU·h
+    defaultPrecision: process.env.MC_HF_SYNC_DEFAULT_PRECISION || "bf16",
+    defaultVramGb: parseInt(process.env.MC_HF_SYNC_DEFAULT_VRAM_GB || "80", 10),
+  },
   // Chế độ duyệt chặt (segregation of duties): true = chặn creator tự duyệt kể cả admin.
   // Mặc định false — theo quyết định PO: admin có toàn quyền, được tự duyệt entry mình tạo.
   strictApproval: process.env.MC_STRICT_APPROVAL === "true",

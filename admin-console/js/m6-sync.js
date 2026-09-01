@@ -12,7 +12,8 @@ const M6 = {
       </div>
       <div class="tabs" id="sTabs">
         <button data-tab="jobs" class="active">Mirror jobs</button>
-        <button data-tab="updates">Pending updates (Phase 2)</button>
+        <button data-tab="updates">Pending updates</button>
+        <button data-tab="hfsync">HF Auto-sync</button>
       </div>
       <div id="sBody"></div>
     `;
@@ -70,6 +71,8 @@ const M6 = {
             catch (e) { toast(e.message, "error"); }
           };
         });
+      } else if (tab === "hfsync") {
+        await this.loadHfSync(body);
       } else {
         const r = await api("GET", "/admin/catalog/pending-updates");
         const rows = r.data || [];
@@ -103,5 +106,91 @@ const M6 = {
     } catch (e) {
       body.innerHTML = `<div class="banner error">${esc(e.message)}</div>`;
     }
+  },
+
+  async loadHfSync(body) {
+    const [runs, disc, health] = await Promise.all([
+      api("GET", "/admin/catalog/sync-runs?limit=50"),
+      api("GET", "/admin/catalog/discovered"),
+      fetch("/health").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    ]);
+    const runRows = runs.data || [];
+    const discRows = disc.data || [];
+    const worker = health && health.workers && health.workers.mcHfSync;
+    const workerOn = !!(worker && worker.enabled);
+    const lastRun = runRows[0];
+
+    body.innerHTML = `
+      <div class="panel">
+        <div class="panel-row">
+          <div>
+            <div class="panel-title">HF Auto-sync</div>
+            <div class="dim" style="font-size:12px;margin-top:4px">
+              Tự động fetch model mới từ HuggingFace + kiểm tra revision theo định kỳ.
+              Model phát hiện luôn tạo <b>draft</b> — cần người duyệt.
+            </div>
+          </div>
+          <div class="btn-row" style="justify-content:flex-end">
+            <button class="btn btn-ghost" id="btnHfRefresh">⟳ Refresh</button>
+            <button class="btn btn-primary" id="btnHfRunNow">▶ Chạy ngay</button>
+          </div>
+        </div>
+        <div class="kpi-row" style="margin-top:12px">
+          <div class="kpi"><span class="kpi-label">WORKER</span><span class="kpi-value">${workerOn ? "ĐANG BẬT" : "TẮT"}</span><span class="kpi-delta">chu kỳ ${worker && worker.pollIntervalMs ? Math.round(worker.pollIntervalMs / 3600000) + "h" : "—"}</span></div>
+          <div class="kpi"><span class="kpi-label">LẦN CHẠY CUỐI</span><span class="kpi-value">${lastRun ? timeAgo(lastRun.startedAt) : "—"}</span><span class="kpi-delta">${lastRun ? lastRun.discovered + " mới · " + lastRun.newRevisions + " rev · " + lastRun.errors + " lỗi" : "chưa chạy"}</span></div>
+          <div class="kpi"><span class="kpi-label">PHÁT HIỆN</span><span class="kpi-value">${discRows.length}</span><span class="kpi-delta">draft từ HF</span></div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:16px">
+        <div class="panel-title">Model mới phát hiện từ HuggingFace</div>
+        ${discRows.length ? `<div class="table-wrap"><table>
+          <thead><tr><th>Model</th><th>hf_model_id</th><th>Revision</th><th>Cập nhật</th><th></th></tr></thead>
+          <tbody>${discRows.map((m) => `
+            <tr>
+              <td>${esc(m.displayName)}</td>
+              <td class="mono dim">${esc(m.hfModelId)}</td>
+              <td class="mono dim">${esc((m.revision || "main").slice(0, 12))}</td>
+              <td class="dim">${timeAgo(m.hfLastCheckedAt || m.createdAt)}</td>
+              <td class="btn-row" style="justify-content:flex-end">
+                <a class="btn btn-sm" href="#/entry/${encodeURIComponent(m.id)}">Xem & duyệt</a>
+              </td>
+            </tr>`).join("")}
+          </tbody></table></div>`
+          : `<div class="empty"><div class="big">🔍</div>Chưa có model nào được phát hiện.<br>Bấm "Chạy ngay" hoặc đợi chu kỳ định kỳ.</div>`}
+      </div>
+
+      <div class="panel" style="margin-top:16px">
+        <div class="panel-title">Lịch sử lần chạy</div>
+        ${runRows.length ? `<div class="table-wrap"><table>
+          <thead><tr><th>Bắt đầu</th><th>Discovered</th><th>New rev</th><th>Errors</th><th>Thời lượng</th></tr></thead>
+          <tbody>${runRows.map((r) => {
+            const dur = r.startedAt && r.finishedAt ? Math.max(0, Math.round((Date.parse(r.finishedAt) - Date.parse(r.startedAt)) / 1000)) + "s" : "—";
+            return `<tr>
+              <td class="dim">${timeAgo(r.startedAt)}</td>
+              <td>${r.discovered}</td>
+              <td>${r.newRevisions}</td>
+              <td class="${r.errors ? "err" : ""}">${r.errors}</td>
+              <td class="dim">${dur}</td>
+            </tr>`;
+          }).join("")}
+          </tbody></table></div>`
+          : `<div class="empty"><div class="big">🕐</div>Chưa có lần chạy nào.</div>`}
+      </div>
+    `;
+
+    const refresh = () => this.load("hfsync");
+    const runNow = document.getElementById("btnHfRunNow");
+    if (runNow) runNow.onclick = async () => {
+      runNow.disabled = true;
+      runNow.textContent = "Đang chạy…";
+      try {
+        const r = await api("POST", "/admin/catalog/sync/run-now");
+        toast(r.message || "Đã kích hoạt.", "ok");
+      } catch (e) { toast(e.message, "error"); }
+      setTimeout(() => { runNow.disabled = false; runNow.textContent = "▶ Chạy ngay"; refresh(); }, 2500);
+    };
+    const rf = document.getElementById("btnHfRefresh");
+    if (rf) rf.onclick = refresh;
   },
 };

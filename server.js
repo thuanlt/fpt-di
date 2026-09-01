@@ -24,6 +24,7 @@ const byomWorker = require('./src/byom/worker');
 const endpointWorker = require('./src/endpoints/worker');
 const documentsWorker = require('./src/documents/worker');
 const mcMirrorWorker = require('./src/catalog-admin/mirror');
+const mcHfSyncWorker = require('./src/catalog-admin/hfsync');
 const { shutdown: queueShutdown, ping: redisPing } = require('./src/batch/queue');
 const byomCfg = require('./src/byom/config');
 const documentsCfg = require('./src/documents/config');
@@ -52,6 +53,7 @@ app.get('/health', async (req, res) => {
       endpoint: endpointWorker.status(),
       documents: documentsWorker.status(),
       mcMirror: mcMirrorWorker.status(),
+      mcHfSync: mcHfSyncWorker.status(),
       mode: process.env.WORKER_MODE || 'all',
     },
     postgres: pgOk,
@@ -238,7 +240,8 @@ const server = app.listen(PORT, async () => {
     endpointWorker.start();
     documentsWorker.start();
     mcMirrorWorker.start();
-    console.log(`[workers] mode=${WORKER_MODE} — batch+byom+endpoint+documents+mc-mirror đã khởi động`);
+    mcHfSyncWorker.start();
+    console.log(`[workers] mode=${WORKER_MODE} — batch+byom+endpoint+documents+mc-mirror+hf-sync đã khởi động`);
   } else {
     console.log(`[workers] mode=${WORKER_MODE} — web/API-only, không khởi động workers`);
   }
@@ -251,6 +254,7 @@ function graceful(signal) {
   endpointWorker.stop();
   documentsWorker.stop();
   mcMirrorWorker.stop();
+  mcHfSyncWorker.stop();
   Promise.all([queueShutdown(), db.shutdown()]).finally(() => {
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 5000).unref();

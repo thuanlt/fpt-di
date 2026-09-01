@@ -1825,6 +1825,20 @@
   </form>
 </div>
 
+<!-- ═══ Model detail modal (Model Catalog) ═══ -->
+<div class="drawer-overlay" id="modelDetailOverlay" hidden></div>
+<div class="modal" id="modelDetailModal" role="dialog" aria-modal="true" aria-labelledby="modelDetailTitle" hidden>
+  <div class="drawer-head">
+    <h2 id="modelDetailTitle">Model info</h2>
+    <button class="btn btn-ghost btn-sm" id="modelDetailClose" aria-label="Close dialog">✕</button>
+  </div>
+  <div class="modal-body" id="modelDetailBody"></div>
+  <div class="modal-foot">
+    <button type="button" class="btn btn-ghost" id="modelDetailCancel">Đóng</button>
+    <button type="button" class="btn btn-primary" id="modelDetailCreateBtn">+ Create endpoint</button>
+  </div>
+</div>
+
 <!-- ═══ Create price pack modal (US-06) ═══ -->
 <div class="drawer-overlay" id="packOverlay" hidden></div>
 <div class="modal" id="packModal" role="dialog" aria-modal="true" aria-labelledby="packModalTitle" hidden>

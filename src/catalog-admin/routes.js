@@ -7,6 +7,7 @@
 const express = require("express");
 const store = require("./store");
 const hf = require("./hf");
+const hfsync = require("./hfsync");
 const publish = require("./publish");
 const cfg = require("./config");
 
@@ -469,6 +470,39 @@ router.post("/admin/catalog/pending-updates/:id/reject", async (req, res) => {
     const rec = await store.decidePendingUpdate(req.params.id, "rejected", actorOf(req));
     if (!rec) return httpError(res, 404, "NOT_FOUND", "pending update không tồn tại hoặc đã được xử lý");
     res.json({ ok: true, data: { id: rec.id, status: "rejected" } });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: { code: "INTERNAL", message: e.message } });
+  }
+});
+
+// ── HF Auto-Sync ────────────────────────────────────────────────
+
+// GET /admin/catalog/sync-runs — lịch sử lần chạy HF sync
+router.get("/admin/catalog/sync-runs", async (req, res) => {
+  try {
+    const data = await store.listSyncRuns(req.query.limit);
+    res.json({ ok: true, count: data.length, data });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: { code: "INTERNAL", message: e.message } });
+  }
+});
+
+// POST /admin/catalog/sync/run-now — chạy ngay 1 chu kỳ (async)
+router.post("/admin/catalog/sync/run-now", async (req, res) => {
+  try {
+    hfsync.runOnce().catch((e) => console.error("[mc-hfsync] run-now lỗi:", e.message));
+    res.json({ ok: true, started: true, message: "HF sync đã được kích hoạt chạy nền." });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: { code: "INTERNAL", message: e.message } });
+  }
+});
+
+// GET /admin/catalog/discovered — entry draft do HF discover tạo
+router.get("/admin/catalog/discovered", async (req, res) => {
+  try {
+    const data = await store.listEntries({ status: "draft", limit: 200 });
+    const discovered = data.filter((e) => e.hfDiscovered);
+    res.json({ ok: true, count: discovered.length, data: discovered });
   } catch (e) {
     res.status(500).json({ ok: false, error: { code: "INTERNAL", message: e.message } });
   }

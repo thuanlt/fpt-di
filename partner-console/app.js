@@ -536,6 +536,12 @@ async function loadAllRealData() {
       lastRun: s.last_run || "—",
       invokeAction: s.name.includes("endpoint") ? "endpoint list" : s.name.includes("batch") ? "batch submit demo.jsonl" : s.name.includes("ft") ? "ft start" : s.name.includes("cost") ? "cost report" : s.name.includes("capacity") ? "headroom --gpu H100" : "experiment start",
     }))],
+    // Operational data — nguồn THẬT (DB/Redis), thay mock hardcode trong DATA
+    ["dedicated", "/v1/data/endpoints", (r) => r.data],
+    ["batch", "/v1/data/batch", (r) => r.data],
+    ["apiKeys", "/v1/data/keys", (r) => r.data],
+    ["nimCatalog", "/v1/data/catalog", (r) => r.data],
+    ["auditLog", "/v1/data/audit", (r) => r.data],
   ];
   // SLA + PTU + CLI phải format đặc biệt
   const special = [
@@ -914,7 +920,7 @@ let dedPollTimer = null;
 
 async function fetchDedicated() {
   try {
-    const res = await fetch("/v1/endpoints" + (dedFilter !== "all" ? `?mode=${dedFilter}` : ""));
+    const res = await fetch("/v1/data/endpoints" + (dedFilter !== "all" ? `?mode=${dedFilter}` : ""));
     if (!res.ok) throw new Error("HTTP " + res.status);
     const json = await res.json();
     dedicatedEndpoints = json.data || [];
@@ -1439,7 +1445,7 @@ async function updatePricePackHint() {
   const gpu = $("#fGpu").value;
   const region = $("#fRegion").value;
   try {
-    const res = await fetch("/v1/price-packs?segment=" + encodeURIComponent(seg) + "&gpu=" + encodeURIComponent(gpu) + "&region=" + encodeURIComponent(region));
+    const res = await fetch("/v1/data/price-packs?segment=" + encodeURIComponent(seg) + "&gpu=" + encodeURIComponent(gpu) + "&region=" + encodeURIComponent(region));
     if (!res.ok) { el.hidden = true; return; }
     const json = await res.json();
     const pack = (json.data || [])[0];
@@ -1467,9 +1473,11 @@ function setMode(mode) {
   });
 }
 
-function openCreateModal() {
-  const models = DATA.partners.map((p) => p.top);
-  $("#fModel").innerHTML = models.map((m) => `<option>${esc(m)}</option>`).join("");
+function openCreateModal(presetModel) {
+  const fromPartners = DATA.partners.map((p) => p.top);
+  const fromCatalog = DATA.catalog.map((m) => m.model);
+  const models = [...new Set([...fromPartners, ...fromCatalog])];
+  $("#fModel").innerHTML = models.map((m) => `<option${presetModel && String(m) === String(presetModel) ? " selected" : ""}>${esc(m)}</option>`).join("");
   $("#fName").value = "";
   setMode("k8s");
   const allowBox = $("#fAllowSwap"); if (allowBox) allowBox.checked = false;
@@ -1731,7 +1739,7 @@ function renderCatalog() {
     const ctxTag = m.ctx && m.ctx !== "—" ? `<span class="model-tag spec">${esc(m.ctx)} ctx</span>` : "";
     const priceTag = m.price ? `<span class="model-tag spec">$${m.price}/GPU·h</span>` : "";
     const color = vendorColor(m.vendor);
-    return `<div class="card model-card">
+    return `<div class="card model-card" data-model="${esc(m.model)}" tabindex="0" role="button" aria-label="Xem thông tin ${esc(m.model)}">
       <div class="model-top">
         <span class="model-logo" style="background:${color}">${esc(vendorInitial(m.vendor))}</span>
         <div class="model-title"><span class="model-name">${esc(m.model)}</span>${newBadge}${ddiBadge}</div>
@@ -1743,10 +1751,53 @@ function renderCatalog() {
         <div class="model-stat"><b>${esc(m.size === "—" ? "—" : m.size)}</b><span>size</span></div>
         <div class="model-stat"><b>${esc(m.ctx === "—" ? "—" : m.ctx)}</b><span>context</span></div>
       </div>
+      <div class="model-view">Xem thông tin →</div>
     </div>`;
   }).join("");
 
   $("#catalogEmpty").hidden = rows.length > 0;
+}
+
+/* ── Model detail (click model card trong Model Catalog) ── */
+function openModelDetail(modelName) {
+  const m = DATA.catalog.find((x) => String(x.model) === String(modelName));
+  if (!m) { toast("Không tìm thấy model: " + modelName, "error"); return; }
+  $("#modelDetailTitle").textContent = m.model;
+  const color = vendorColor(m.vendor);
+  const tags = modalTags(m).join("");
+  const sizeTag = m.size && m.size !== "—" ? `<span class="model-tag spec">${esc(m.size)}</span>` : "";
+  const ctxTag = m.ctx && m.ctx !== "—" ? `<span class="model-tag spec">${esc(m.ctx)} ctx</span>` : "";
+  const priceTag = m.price ? `<span class="model-tag spec">$${esc(m.price)}/GPU·h</span>` : "";
+  const ddiBadge = m.ddi ? '<span class="new-badge" style="background:rgba(59,130,246,.15);color:#3b82f6;border-color:rgba(59,130,246,.4)">⚡ Dedicated</span>' : "";
+  const newBadge = m.status === "new" ? '<span class="new-badge">✦ New</span>' : "";
+  $("#modelDetailBody").innerHTML = `
+    <div class="model-detail-head">
+      <span class="model-logo" style="background:${color};width:44px;height:44px;font-size:18px">${esc(vendorInitial(m.vendor))}</span>
+      <div>
+        <div class="model-detail-name">${esc(m.model)} ${newBadge}${ddiBadge}</div>
+        <div class="model-detail-id mono">${esc(m.hfId || modelSlug(m.vendor, m.model))}</div>
+      </div>
+    </div>
+    <p class="model-detail-desc">${esc(m.note || "")}</p>
+    <div class="model-tags">${tags}${sizeTag}${ctxTag}${priceTag}</div>
+    <dl class="kv model-detail-kv">
+      <dt>Vendor</dt><dd>${esc(m.vendor)}</dd>
+      <dt>Modality</dt><dd>${esc(m.modal)}</dd>
+      <dt>Parameters</dt><dd>${esc(m.size === "—" ? "—" : m.size)}</dd>
+      <dt>Context length</dt><dd>${esc(m.ctx === "—" ? "—" : m.ctx)}</dd>
+      <dt>Price</dt><dd>${m.price ? "$" + esc(m.price) + "/GPU·h" : "—"}</dd>
+      <dt>Status</dt><dd>${esc(m.status)}</dd>
+    </dl>
+    <p class="devtools-hint mono">Nhấn "Create endpoint" để deploy model này lên dedicated endpoint.</p>`;
+  $("#modelDetailModal").hidden = false;
+  $("#modelDetailOverlay").hidden = false;
+  window._detailModel = m;
+}
+
+function closeModelDetail() {
+  $("#modelDetailModal").hidden = true;
+  $("#modelDetailOverlay").hidden = true;
+  window._detailModel = null;
 }
 
 /* ── Fine-tuning view (gap: LoRA/Full/DPO + one-click deploy) ── */
@@ -1788,7 +1839,7 @@ let batchPollTimer = null;
 
 async function fetchBatchJobs() {
   try {
-    const res = await fetch("/v1/batch?limit=100");
+    const res = await fetch("/v1/data/batch");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     batchJobs = json.data || [];
@@ -2490,7 +2541,7 @@ function renderPricing() {
 let bpkData = [];
 async function renderBilling() {
   const seg = $("#bpkSegment") ? $("#bpkSegment").value : "";
-  const url = "/v1/price-packs" + (seg ? "?segment=" + encodeURIComponent(seg) : "");
+  const url = "/v1/data/price-packs" + (seg ? "?segment=" + encodeURIComponent(seg) : "");
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error("HTTP " + res.status);
@@ -3697,7 +3748,7 @@ async function fetchAudit() {
   params.set("limit", "200");
   const qs = params.toString();
   try {
-    const res = await fetch("/v1/audit" + (qs ? "?" + qs : ""));
+    const res = await fetch("/v1/data/audit" + (qs ? "?" + qs : ""));
     if (!res.ok) throw new Error("HTTP " + res.status);
     const json = await res.json();
     auditRowsData = json.data || [];
@@ -4147,6 +4198,27 @@ async function init() {
   if (catSearchEl) catSearchEl.addEventListener("input", () => {
     catalogQuery = catSearchEl.value;
     renderCatalog();
+  });
+
+  // click model card → xem chi tiết model
+  $("#catalogGrid").addEventListener("click", (e) => {
+    const card = e.target.closest(".model-card[data-model]");
+    if (card) openModelDetail(card.dataset.model);
+  });
+  $("#catalogGrid").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      const card = e.target.closest(".model-card[data-model]");
+      if (card) { e.preventDefault(); openModelDetail(card.dataset.model); }
+    }
+  });
+  // model detail modal — đóng + create endpoint
+  $("#modelDetailClose").addEventListener("click", closeModelDetail);
+  $("#modelDetailCancel").addEventListener("click", closeModelDetail);
+  $("#modelDetailOverlay").addEventListener("click", closeModelDetail);
+  $("#modelDetailCreateBtn").addEventListener("click", () => {
+    const m = window._detailModel;
+    closeModelDetail();
+    if (m) openCreateModal(m.model);
   });
 
   // NVIDIA NIM catalog (US-01 / WF-01) — live từ /v1/catalog

@@ -1410,6 +1410,26 @@ input[type="file"]::file-selector-button:hover { border-color: var(--accent); }
 .model-stat { display: flex; flex-direction: column; gap: 2px; }
 .model-stat b { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--ink); }
 .model-stat span { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); }
+.model-card { cursor: pointer; }
+.model-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.model-view {
+  margin-top: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.model-card:hover .model-view, .model-card:focus-visible .model-view { opacity: 1; }
+
+/* ── Model detail modal ─────────────────────── */
+.model-detail-head { display: flex; align-items: center; gap: 14px; }
+.model-detail-name { font-size: 18px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.model-detail-id { font-size: 12.5px; color: var(--ink-faint); margin-top: 2px; }
+.model-detail-desc { font-size: 13.5px; color: var(--ink-dim); line-height: 1.55; margin: 12px 0; }
+.model-detail-kv { margin-top: 14px; }
+.model-detail-kv dt { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); }
+.model-detail-kv dd { font-family: var(--mono); font-size: 13px; color: var(--ink); }
 
 /* ── Prometheus metrics endpoint ────────────── */
 .prom-box { display: flex; flex-direction: column; gap: 10px; }
