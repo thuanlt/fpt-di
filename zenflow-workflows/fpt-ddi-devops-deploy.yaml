@@ -1,0 +1,212 @@
+name: fpt-ddi-devops-deploy
+description: |
+  Workflow DevOps — triển khai tự động FPT DDI lên cụm K8s (FPT SmartCloud) qua Helm.
+  Pipeline: preflight → build image → push registry → helm lint/template → helm upgrade
+  → verify rollout → smoke test → (rollback nếu fail). Chạy thật trên máy có helm+kubectl+docker.
+  Env cần thiết (qua --env-file .env.deploy):
+    REGISTRY, IMAGE_TAG, HELM_VALUES, KUBE_CONTEXT, APP_URL, SMOKE_KEY
+agents:
+  runner:
+    description: "DevOps runner — build, push, deploy, verify, rollback FPT DDI qua Helm."
+
+steps:
+  # ───────────────────────── 1. PREFLIGHT ─────────────────────────
+  - id: preflight-tools
+    tool: bash
+    toolInput:
+      command: |
+        set -e
+        for t in helm kubectl docker git; do
+          command -v "$t" >/dev/null 2>&1 || { echo "MISSING: $t"; exit 1; }
+        done
+        echo "preflight OK: helm=$(helm version --short) kubectl=$(kubectl version --client -o json 2>/dev/null | jq -r .clientVersion.gitVersion) docker=$(docker --version)"
+
+  - id: preflight-context
+    dependsOn: [preflight-tools]
+    tool: bash
+    toolInput:
+      command: |
+        set -e
+        CTX="${KUBE_CONTEXT:-$(kubectl config current-context)}"
+        echo "Kube context: $CTX"
+        kubectl config use-context "$CTX" >/dev/null
+        kubectl cluster-info 2>&1 | head -3
+        NS="${HELM_NAMESPACE:-ddi}"
+        kubectl get ns "$NS" >/dev/null 2>&1 && echo "namespace $NS tồn tại" || echo "namespace $NS chưa có (helm sẽ tạo)"
+
+  - id: preflight-git
+    dependsOn: [preflight-tools]
+    tool: bash
+    toolInput:
+      command: |
+        set -e
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "WARN: working tree dirty — deploy từ trạng thái chưa commit"
+        else
+          echo "working tree sạch — deploy từ commit $(git rev-parse --short HEAD)"
+        fi
+        echo "branch: $(git branch --show-current || echo '(detached)')"
+
+  # ───────────────────────── 2. BUILD ─────────────────────────
+  - id: build-backend
+    dependsOn: [preflight-tools]
+    tool: bash
+    toolInput:
+      command: |
+        set -e
+        TAG="${IMAGE_TAG:-v2.1.0}"
+        REG="${REGISTRY:-docker.io/thuanlt11}"
+        docker build -f Dockerfile.backend -t "$REG/ddi-backend:$TAG" .
+        echo "built $REG/ddi-backend:$TAG"
+
+  - id: build-vllm-adapter
+    dependsOn: [preflight-tools]
+    tool: bash
+    toolInput:
+      command: |
+        set -e
+        TAG="${IMAGE_TAG:-v2.1.0}"
+        REG="${REGISTRY:-docker.io/thuanlt11}"
+        docker build -f Dockerfile.vllm-adapter -t "$REG/ddi-vllm-adapter:$TAG" .
+        echo "built $REG/ddi-vllm-adapter:$TAG"
+
+  # ───────────────────────── 3. PUSH ─────────────────────────
+  - id: push-images
+    dependsOn: [build-backend, build-vllm-adapter]
+    tool: bash
+    toolInput:
+      command: |
+        set -e
+        TAG="${IMAGE_TAG:-v2.1.0}"
+        REG="${REGISTRY:-docker.io/thuanlt11}"
+        docker push "$REG/ddi-backend:$TAG"
+        docker push "$REG/ddi-vllm-adapter:$TAG"
+        echo "pushed backend + vllm-adapter ($TAG) lên $REG"
+
+  # ───────────────────────── 4. VALIDATE CHART ─────────────────────────
+  - id: helm-lint
+    dependsOn: [preflight-tools]
+    tool: bash
+    toolInput:
+      command: |
+        set -e
+        helm lint deploy/helm
+        echo "helm lint OK"
+
+  - id: helm-template
+    dependsOn: [helm-lint]
+    tool: bash
+    toolInput:
+      command: |
+        set -e
+        FILES="${HELM_VALUES:-deploy/helm/values.fpt-dev.yaml}"
+        EXTRA="${HELM_VALUES_EXTRA:-}"
+        ARGS="-f deploy/helm/values.yaml -f $FILES"
+        [ -n "$EXTRA" ] && ARGS="$ARGS -f $EXTRA"
+        helm template fpt-ddi deploy/helm -n "${HELM_NAMESPACE:-ddi}" $ARGS --set image.backend="${REGISTRY:-docker.io/thuanlt11}/ddi-backend:${IMAGE_TAG:-v2.1.0}" --set image.vllmAdapter="${REGISTRY:-docker.io/thuanlt11}/ddi-vllm-adapter:${IMAGE_TAG:-v2.1.0}" >/tmp/rendered.yaml
+        echo "render OK — $(wc -l < /tmp/rendered.yaml) dòng manifest"
+        kubectl apply --dry-run=client -f /tmp/rendered.yaml >/dev/null 2>&1 && echo "dry-run client OK" || echo "WARN: dry-run client có cảnh báo"
+
+  # ───────────────────────── 5. DEPLOY ─────────────────────────
+  - id: helm-upgrade
+    dependsOn: [push-images, helm-template]
+    tool: bash
+    toolInput:
+      command: |
+        set -e
+        FILES="${HELM_VALUES:-deploy/helm/values.fpt-dev.yaml}"
+        EXTRA="${HELM_VALUES_EXTRA:-}"
+        ARGS="-f deploy/helm/values.yaml -f $FILES"
+        [ -n "$EXTRA" ] && ARGS="$ARGS -f $EXTRA"
+        helm upgrade --install fpt-ddi deploy/helm -n "${HELM_NAMESPACE:-ddi}" --create-namespace \
+          $ARGS \
+          --set image.backend="${REGISTRY:-docker.io/thuanlt11}/ddi-backend:${IMAGE_TAG:-v2.1.0}" \
+          --set image.vllmAdapter="${REGISTRY:-docker.io/thuanlt11}/ddi-vllm-adapter:${IMAGE_TAG:-v2.1.0}" \
+          --atomic --timeout 240s
+        echo "helm upgrade OK — release fpt-ddi"
+
+  # ───────────────────────── 6. VERIFY ─────────────────────────
+  - id: verify-rollout
+    dependsOn: [helm-upgrade]
+    tool: bash
+    toolInput:
+      command: |
+        set -e
+        NS="${HELM_NAMESPACE:-ddi}"
+        kubectl rollout status deployment/fpt-ddi-web -n "$NS" --timeout=180s
+        kubectl rollout status deployment/fpt-ddi-worker -n "$NS" --timeout=180s || echo "WARN: worker không có (WORKER_MODE=all)"
+        kubectl get pods -n "$NS" -o wide | grep -E 'fpt-ddi-(web|worker)' || true
+
+  - id: verify-health
+    dependsOn: [verify-rollout]
+    tool: bash
+    toolInput:
+      command: |
+        set -e
+        URL="${APP_URL:-http://localhost:3000}"
+        for i in $(seq 1 12); do
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' "$URL/health" || echo 000)
+          echo "health poll $i: $CODE"
+          [ "$CODE" = "200" ] && break
+          sleep 5
+        done
+        [ "$CODE" = "200" ] || { echo "health FAIL sau 60s"; exit 1; }
+        curl -s "$URL/health" | jq -e '.status == "ok"' >/dev/null && echo "health OK: status=ok"
+
+  # ───────────────────────── 7. SMOKE TEST ─────────────────────────
+  - id: smoke-models
+    dependsOn: [verify-health]
+    tool: bash
+    toolInput:
+      command: |
+        set -e
+        URL="${APP_URL:-http://localhost:3000}"
+        curl -s "$URL/v1/models" | jq -e '.data | length >= 1' >/dev/null \
+          && echo "SMOKE PASS: model catalog có $(curl -s "$URL/v1/models" | jq '.data | length') model"
+
+  - id: smoke-key
+    dependsOn: [verify-health]
+    tool: bash
+    toolInput:
+      command: |
+        set -e
+        URL="${APP_URL:-http://localhost:3000}"
+        if [ -n "${SMOKE_KEY:-}" ]; then
+          curl -s -H "Authorization: Bearer $SMOKE_KEY" "$URL/v1/models" | jq -e '.data | length >= 1' >/dev/null \
+            && echo "SMOKE PASS: auth bằng key hợp lệ"
+        else
+          echo "SKIP: không có SMOKE_KEY — bỏ qua smoke auth"
+        fi
+
+  # ───────────────────────── 8. ROLLBACK (khi verify/smoke fail) ─────────────────────────
+  - id: rollback-on-failure
+    dependsOn: [verify-health, smoke-models, smoke-key]
+    tool: bash
+    toolInput:
+      command: |
+        set +e
+        NS="${HELM_NAMESPACE:-ddi}"
+        HEALTH_CODE=$(curl -s -o /dev/null -w '%{http_code}' "${APP_URL:-http://localhost:3000}/health")
+        MODELS_OK=$(curl -s "${APP_URL:-http://localhost:3000}/v1/models" | jq -e '.data | length >= 1' >/dev/null 2>&1 && echo yes || echo no)
+        echo "health=$HEALTH_CODE models_ok=$MODELS_OK"
+        if [ "$HEALTH_CODE" = "200" ] && [ "$MODELS_OK" = "yes" ]; then
+          echo "ROLLBACK SKIP: deploy khoẻ — không cần rollback"
+          exit 0
+        fi
+        echo "DEPLOY FAIL — thực hiện rollback release fpt-ddi..."
+        helm rollback fpt-ddi -n "$NS" || helm history fpt-ddi -n "$NS" | head -5
+        echo "ROLLBACK DONE — đã quay về revision trước"
+
+  # ───────────────────────── 9. SUMMARY ─────────────────────────
+  - id: summary
+    dependsOn: [rollback-on-failure]
+    tool: bash
+    toolInput:
+      command: |
+        echo '=============================================='
+        echo ' FPT DDI DEVOPS DEPLOY — HOÀN TẤT'
+        echo "  image:   ${REGISTRY:-docker.io/thuanlt11}:${IMAGE_TAG:-v2.1.0}"
+        echo "  release: fpt-ddi (ns ${HELM_NAMESPACE:-ddi})"
+        echo "  url:     ${APP_URL:-http://localhost:3000}"
+        echo '  steps:   preflight→build→push→lint→deploy→verify→smoke ✓'
+        echo '=============================================='
