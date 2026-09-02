@@ -1,0 +1,59 @@
+{{- if .Values.adminConsole.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-admin
+  namespace: {{ .Values.namespace | default .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: fpt-ddi
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: admin-console
+spec:
+  replicas: {{ .Values.adminConsole.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: admin-console
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fpt-ddi
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: admin-console
+    spec:
+      containers:
+        - name: caddy
+          image: caddy:2-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: {{ .Values.adminConsole.port }}
+          command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+          readinessProbe:
+            httpGet:
+              path: /admin/
+              port: {{ .Values.adminConsole.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /admin/
+              port: {{ .Values.adminConsole.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.adminConsole.resources | nindent 12 }}
+          volumeMounts:
+            - name: caddyfile
+              mountPath: /etc/caddy
+              readOnly: true
+            - name: admin-console
+              mountPath: /srv/admin-console
+              readOnly: true
+      volumes:
+        - name: caddyfile
+          configMap:
+            name: {{ .Release.Name }}-admin-caddyfile
+        - name: admin-console
+          configMap:
+            name: {{ .Release.Name }}-admin-console
+{{- end }}

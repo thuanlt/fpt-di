@@ -1,0 +1,21 @@
+{{- if .Values.adminConsole.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-admin
+  namespace: {{ .Values.namespace | default .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: fpt-ddi
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: admin-console
+spec:
+  type: {{ .Values.adminConsole.serviceType | default "ClusterIP" }}
+  ports:
+    - port: {{ .Values.adminConsole.port }}
+      targetPort: {{ .Values.adminConsole.port }}
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: admin-console
+{{- end }}

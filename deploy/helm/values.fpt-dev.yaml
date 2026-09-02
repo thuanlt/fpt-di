@@ -18,6 +18,13 @@ envSecret:
 # Dev trial: console tự tạo key được → tắt admin-gate
 keysAdminRequired: "false"
 
+# Admin Console — Model Catalog Admin trên port riêng
+adminConsole:
+  enabled: true
+  replicas: 1
+  port: 9090
+  serviceType: NodePort
+
 web:
   enabled: true
   replicas: 1

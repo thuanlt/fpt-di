@@ -1,0 +1,41 @@
+{{- if .Values.adminConsole.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-admin-caddyfile
+  namespace: {{ .Values.namespace | default .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: fpt-ddi
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: admin-console
+data:
+  Caddyfile: |
+    {
+      admin off
+    }
+    :{{ .Values.adminConsole.port }} {
+      encode gzip
+      root * /srv/admin-console
+
+      handle /v1/* {
+        reverse_proxy {{ .Release.Name }}-web:3000 {
+          header_up Host {host}
+        }
+      }
+
+      handle_path /admin* {
+        root * /srv/admin-console
+        @staticAdmin path / *.html *.css *.js
+        header @staticAdmin Cache-Control "no-store, max-age=0"
+        try_files {path} /index.html
+        file_server
+      }
+
+      handle {
+        @static path / *.html *.js *.css
+        header @static Cache-Control "no-store, max-age=0"
+        try_files {path} /index.html
+        file_server
+      }
+    }
+{{- end }}
